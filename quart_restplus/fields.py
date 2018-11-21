@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import re
 import fnmatch
 import inspect
@@ -9,12 +7,10 @@ from calendar import timegm
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_EVEN
 from email.utils import formatdate
+from urllib.parse import urlparse, urlunparse
 
-from six import iteritems, itervalues, text_type, string_types
-from six.moves.urllib.parse import urlparse, urlunparse
-
-from flask import url_for, request
-from werkzeug import cached_property
+from quart import url_for, request
+from cached_property import cached_property
 
 from .inputs import date_from_iso8601, datetime_from_iso8601, datetime_from_rfc822, boolean
 from .errors import RestError
@@ -29,13 +25,13 @@ __all__ = ('Raw', 'String', 'FormattedString', 'Url', 'DateTime', 'Date',
 
 
 class MarshallingError(RestError):
-    '''
+    """
     This is an encapsulating Exception in case of marshalling error.
-    '''
+    """
     def __init__(self, underlying_exception):
         # just put the contextual representation of the error to hint on what
         # went wrong without exposing internals
-        super(MarshallingError, self).__init__(text_type(underlying_exception))
+        super(MarshallingError, self).__init__(str(underlying_exception))
 
 
 def is_indexable_but_not_string(obj):
@@ -43,7 +39,7 @@ def is_indexable_but_not_string(obj):
 
 
 def get_value(key, obj, default=None):
-    '''Helper for pulling a keyed value off various types of objects'''
+    """Helper for pulling a keyed value off various types of objects"""
     if isinstance(key, int):
         return _get_value_for_key(key, obj, default)
     elif callable(key):
@@ -70,10 +66,10 @@ def _get_value_for_key(key, obj, default):
 
 
 def to_marshallable_type(obj):
-    '''
+    """
     Helper for converting an object to a dictionary only if it is not
     dictionary already or an indexable object nor a simple type
-    '''
+    """
     if obj is None:
         return None  # make it idempotent for None
 
@@ -87,7 +83,7 @@ def to_marshallable_type(obj):
 
 
 class Raw(object):
-    '''
+    """
     Raw provides a base field class from which others should extend. It
     applies no formatting by default, and should only be used in cases where
     data does not need to be formatted before being serialized. Fields should
@@ -104,7 +100,7 @@ class Raw(object):
     :param bool readonly: Is the field read only ? (for documentation purpose)
     :param example: An optional data example (for documentation purpose)
     :param callable mask: An optional mask function to be applied to output
-    '''
+    """
     #: The JSON/Swagger schema type
     __schema_type__ = 'object'
     #: The JSON/Swagger schema format
@@ -124,7 +120,7 @@ class Raw(object):
         self.mask = mask
 
     def format(self, value):
-        '''
+        """
         Formats a field's value. No-op by default - field classes that
         modify how the value of existing object keys should be presented should
         override this and apply the appropriate formatting.
@@ -137,11 +133,11 @@ class Raw(object):
             class TitleCase(Raw):
                 def format(self, value):
                     return unicode(value).title()
-        '''
+        """
         return value
 
     def output(self, key, obj, **kwargs):
-        '''
+        """
         Pulls the value for the given key from the object, applies the
         field's formatting and returns the result. If the key is not found
         in the object, returns the default value. Field classes that create
@@ -149,7 +145,7 @@ class Raw(object):
         should override this and return the desired value.
 
         :raises MarshallingError: In case of formatting problem
-        '''
+        """
 
         value = get_value(key if self.attribute is None else self.attribute, obj)
 
@@ -165,7 +161,7 @@ class Raw(object):
         return self.mask.apply(data) if self.mask else data
 
     def _v(self, key):
-        '''Helper for getting a value from attribute allowing callable'''
+        """Helper for getting a value from attribute allowing callable"""
         value = getattr(self, key)
         return value() if callable(value) else value
 
@@ -186,7 +182,7 @@ class Raw(object):
 
 
 class Nested(Raw):
-    '''
+    """
     Allows you to nest one set of fields inside another.
     See :ref:`nested-field` for more information
 
@@ -200,7 +196,7 @@ class Nested(Raw):
         dictionary will be marshaled as its value if nested dictionary is
         all-null keys (e.g. lets you return an empty JSON object instead of
         null)
-    '''
+    """
     __schema_type__ = None
 
     def __init__(self, model, allow_null=False, skip_none=False, as_list=False, **kwargs):
@@ -249,13 +245,13 @@ class Nested(Raw):
 
 
 class List(Raw):
-    '''
+    """
     Field for marshalling lists of other fields.
 
     See :ref:`list-field` for more information.
 
     :param cls_or_instance: The field type the list will contain.
-    '''
+    """
     def __init__(self, cls_or_instance, **kwargs):
         self.min_items = kwargs.pop('min_items', None)
         self.max_items = kwargs.pop('max_items', None)
@@ -363,11 +359,6 @@ class NumberMixin(MinMaxMixin):
 
 
 class String(StringMixin, Raw):
-    '''
-    Marshal a value as a string. Uses ``six.text_type`` so values will
-    be converted to :class:`unicode` in python2 and :class:`str` in
-    python3.
-    '''
     def __init__(self, *args, **kwargs):
         self.enum = kwargs.pop('enum', None)
         self.discriminator = kwargs.pop('discriminator', None)
@@ -376,7 +367,7 @@ class String(StringMixin, Raw):
 
     def format(self, value):
         try:
-            return text_type(value)
+            return str(value)
         except ValueError as ve:
             raise MarshallingError(ve)
 
@@ -391,11 +382,11 @@ class String(StringMixin, Raw):
 
 
 class Integer(NumberMixin, Raw):
-    '''
+    """
     Field for outputting an integer value.
 
     :param int default: The default value for the field, if no value is specified.
-    '''
+    """
     __schema_type__ = 'integer'
 
     def format(self, value):
@@ -408,11 +399,11 @@ class Integer(NumberMixin, Raw):
 
 
 class Float(NumberMixin, Raw):
-    '''
+    """
     A double as IEEE-754 double precision.
 
     ex : 3.141592653589793 3.1415926535897933e-06 3.141592653589793e+24 nan inf -inf
-    '''
+    """
 
     def format(self, value):
         try:
@@ -422,23 +413,23 @@ class Float(NumberMixin, Raw):
 
 
 class Arbitrary(NumberMixin, Raw):
-    '''
+    """
     A floating point number with an arbitrary precision.
 
     ex: 634271127864378216478362784632784678324.23432
-    '''
+    """
 
     def format(self, value):
-        return text_type(Decimal(value))
+        return str(Decimal(value))
 
 
 ZERO = Decimal()
 
 
 class Fixed(NumberMixin, Raw):
-    '''
+    """
     A decimal number with a fixed precision.
-    '''
+    """
     def __init__(self, decimals=5, **kwargs):
         super(Fixed, self).__init__(**kwargs)
         self.precision = Decimal('0.' + '0' * (decimals - 1) + '1')
@@ -447,15 +438,15 @@ class Fixed(NumberMixin, Raw):
         dvalue = Decimal(value)
         if not dvalue.is_normal() and dvalue != ZERO:
             raise MarshallingError('Invalid Fixed precision number.')
-        return text_type(dvalue.quantize(self.precision, rounding=ROUND_HALF_EVEN))
+        return str(dvalue.quantize(self.precision, rounding=ROUND_HALF_EVEN))
 
 
 class Boolean(Raw):
-    '''
+    """
     Field for outputting a boolean value.
 
     Empty collections such as ``""``, ``{}``, ``[]``, etc. will be converted to ``False``.
-    '''
+    """
     __schema_type__ = 'boolean'
 
     def format(self, value):
@@ -463,7 +454,7 @@ class Boolean(Raw):
 
 
 class DateTime(MinMaxMixin, Raw):
-    '''
+    """
     Return a formatted datetime string in UTC. Supported formats are RFC 822 and ISO 8601.
 
     See :func:`email.utils.formatdate` for more info on the RFC 822 format.
@@ -471,7 +462,7 @@ class DateTime(MinMaxMixin, Raw):
     See :meth:`datetime.datetime.isoformat` for more info on the ISO 8601 format.
 
     :param str dt_format: ``rfc822`` or ``iso8601``
-    '''
+    """
     __schema_type__ = 'string'
     __schema_format__ = 'date-time'
 
@@ -482,7 +473,7 @@ class DateTime(MinMaxMixin, Raw):
     def parse(self, value):
         if value is None:
             return None
-        elif isinstance(value, string_types):
+        elif isinstance(value, str):
             parser = datetime_from_iso8601 if self.dt_format == 'iso8601' else datetime_from_rfc822
             return parser(value)
         elif isinstance(value, datetime):
@@ -507,21 +498,21 @@ class DateTime(MinMaxMixin, Raw):
             raise MarshallingError(e)
 
     def format_rfc822(self, dt):
-        '''
+        """
         Turn a datetime object into a formatted date.
 
         :param datetime dt: The datetime to transform
         :return: A RFC 822 formatted date string
-        '''
+        """
         return formatdate(timegm(dt.utctimetuple()))
 
     def format_iso8601(self, dt):
-        '''
+        """
         Turn a datetime object into an ISO8601 formatted date.
 
         :param datetime dt: The datetime to transform
         :return: A ISO 8601 formatted date string
-        '''
+        """
         return dt.isoformat()
 
     def _for_schema(self, name):
@@ -537,11 +528,11 @@ class DateTime(MinMaxMixin, Raw):
 
 
 class Date(DateTime):
-    '''
+    """
     Return a formatted date string in UTC in ISO 8601.
 
     See :meth:`datetime.date.isoformat` for more info on the ISO 8601 format.
-    '''
+    """
     __schema_format__ = 'date'
 
     def __init__(self, **kwargs):
@@ -551,7 +542,7 @@ class Date(DateTime):
     def parse(self, value):
         if value is None:
             return None
-        elif isinstance(value, string_types):
+        elif isinstance(value, str):
             return date_from_iso8601(value)
         elif isinstance(value, datetime):
             return value.date()
@@ -562,13 +553,13 @@ class Date(DateTime):
 
 
 class Url(StringMixin, Raw):
-    '''
+    """
     A string representation of a Url
 
     :param str endpoint: Endpoint name. If endpoint is ``None``, ``request.endpoint`` is used instead
     :param bool absolute: If ``True``, ensures that the generated urls will have the hostname included
     :param str scheme: URL scheme specifier (e.g. ``http``, ``https``)
-    '''
+    """
     def __init__(self, endpoint=None, absolute=False, scheme=None, **kwargs):
         super(Url, self).__init__(**kwargs)
         self.endpoint = endpoint
@@ -589,7 +580,7 @@ class Url(StringMixin, Raw):
 
 
 class FormattedString(StringMixin, Raw):
-    '''
+    """
     FormattedString is used to interpolate other values from
     the response into this field. The syntax for the source string is
     the same as the string :meth:`~str.format` method from the python
@@ -607,10 +598,10 @@ class FormattedString(StringMixin, Raw):
         marshal(data, fields)
 
     :param str src_str: the string to format with the other values from the response.
-    '''
+    """
     def __init__(self, src_str, **kwargs):
         super(FormattedString, self).__init__(**kwargs)
-        self.src_str = text_type(src_str)
+        self.src_str = str(src_str)
 
     def output(self, key, obj, **kwargs):
         try:
@@ -621,11 +612,11 @@ class FormattedString(StringMixin, Raw):
 
 
 class ClassName(String):
-    '''
+    """
     Return the serialized object class name as string.
 
     :param bool dash: If `True`, transform CamelCase to kebab_case.
-    '''
+    """
     def __init__(self, dash=False, **kwargs):
         super(ClassName, self).__init__(**kwargs)
         self.dash = dash
@@ -638,7 +629,7 @@ class ClassName(String):
 
 
 class Polymorph(Nested):
-    '''
+    """
     A Nested field handling inheritance.
 
     Allows you to specify a mapping between Python classes and fields specifications.
@@ -655,10 +646,10 @@ class Polymorph(Nested):
         })
 
     :param dict mapping: Maps classes to their model/fields representation
-    '''
+    """
     def __init__(self, mapping, required=False, **kwargs):
         self.mapping = mapping
-        parent = self.resolve_ancestor(list(itervalues(mapping)))
+        parent = self.resolve_ancestor(list(mapping.values()))
         super(Polymorph, self).__init__(parent, allow_null=not required, **kwargs)
 
     def output(self, key, obj, ordered=False, **kwargs):
@@ -674,7 +665,7 @@ class Polymorph(Nested):
         if not hasattr(value, '__class__'):
             raise ValueError('Polymorph field only accept class instances')
 
-        candidates = [fields for cls, fields in iteritems(self.mapping) if isinstance(value, cls)]
+        candidates = [fields for cls, fields in self.mapping.items() if isinstance(value, cls)]
 
         if len(candidates) <= 0:
             raise ValueError('Unknown class: ' + value.__class__.__name__)
@@ -684,11 +675,11 @@ class Polymorph(Nested):
             return marshal(value, candidates[0].resolved, mask=self.mask, ordered=ordered)
 
     def resolve_ancestor(self, models):
-        '''
+        """
         Resolve the common ancestor for all models.
 
         Assume there is only one common ancestor.
-        '''
+        """
         ancestors = [m.ancestors for m in models]
         candidates = set.intersection(*ancestors)
         if len(candidates) != 1:
@@ -709,11 +700,11 @@ class Polymorph(Nested):
 
 
 class Wildcard(Raw):
-    '''
+    """
     Field for marshalling list of "unkown" fields.
 
     :param cls_or_instance: The field type the list will contain.
-    '''
+    """
     exclude = set()
     # cache the flat object
     _flat = None
@@ -739,7 +730,7 @@ class Wildcard(Raw):
         if obj == self._obj and self._flat is not None:
             return self._flat
         if isinstance(obj, dict):
-            self._flat = [x for x in iteritems(obj)]
+            self._flat = [x for x in obj.items()]
         else:
 
             def __match_attributes(attribute):

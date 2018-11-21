@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import re
 import pytz
 import pytest
 
 from datetime import date, datetime
-from six import text_type
 
-from flask_restplus import inputs
+from quart_restplus import inputs
 
 
-class Iso8601DateTest(object):
+class TestIso8601Date(object):
     @pytest.mark.parametrize('value,expected', [
         ('2011-01-01', date(2011, 1, 1)),
         ('2011-01-01T00:00:00+00:00', date(2011, 1, 1)),
@@ -30,7 +27,7 @@ class Iso8601DateTest(object):
         assert inputs.date_from_iso8601.__schema__ == {'type': 'string', 'format': 'date'}
 
 
-class Iso8601DatetimeTest(object):
+class TestIso8601Datetime(object):
     @pytest.mark.parametrize('value,expected', [
         ('2011-01-01', datetime(2011, 1, 1)),
         ('2011-01-01T00:00:00+00:00', datetime(2011, 1, 1, tzinfo=pytz.utc)),
@@ -49,7 +46,7 @@ class Iso8601DatetimeTest(object):
         assert inputs.datetime_from_iso8601.__schema__ == {'type': 'string', 'format': 'date-time'}
 
 
-class Rfc822DatetimeTest(object):
+class TestRfc822Datetime(object):
     @pytest.mark.parametrize('value,expected', [
         ('Sat, 01 Jan 2011', datetime(2011, 1, 1, tzinfo=pytz.utc)),
         ('Sat, 01 Jan 2011 00:00', datetime(2011, 1, 1, tzinfo=pytz.utc)),
@@ -68,7 +65,7 @@ class Rfc822DatetimeTest(object):
             inputs.datetime_from_rfc822('Fake, 01 XXX 2011')
 
 
-class NetlocRegexpTest(object):
+class TestNetlocRegexp(object):
     @pytest.mark.parametrize('netloc,kwargs', [
         ('localhost', {'localhost': 'localhost'}),
         ('example.com', {'domain': 'example.com'}),
@@ -94,15 +91,15 @@ class NetlocRegexpTest(object):
         assert match.groupdict() == expected
 
 
-class URLTest(object):
+class TestURL(object):
     def assert_bad_url(self, validator, value, details=None):
         msg = '{0} is not a valid URL'
         with pytest.raises(ValueError) as cm:
             validator(value)
         if details:
-            assert text_type(cm.value) == '. '.join((msg, details)).format(value)
+            assert str(cm.value) == '. '.join((msg, details)).format(value)
         else:
-            assert text_type(cm.value).startswith(msg.format(value))
+            assert str(cm.value).startswith(msg.format(value))
 
     @pytest.mark.parametrize('url', [
         'http://www.djangoproject.com/',
@@ -145,7 +142,7 @@ class URLTest(object):
         # msg = '{0} is not a valid URL'.format(url)
         # with pytest.raises(ValueError) as cm:
         #     validator(url)
-        # assert text_type(cm.exception).startswith(msg)
+        # assert str(cm.exception).startswith(msg)
 
     @pytest.mark.parametrize('url', [
         'google.com',
@@ -296,13 +293,14 @@ class URLTest(object):
         assert validator('http://www.google.com') == 'http://www.google.com', 'Should check domain'
 
         # This test will fail on a network where this address is defined
-        self.assert_bad_url(validator, 'http://this-domain-should-not-exist.com', 'Domain does not exists')
+        self.assert_bad_url(validator, 'http://this-domain-should-not-exist-xxx.aasxdd.ssdd.asd.sddsfddaa',
+                            'Domain does not exists')
 
     def test_schema(self):
         assert inputs.URL().__schema__ == {'type': 'string', 'format': 'url'}
 
 
-class UrlTest(object):
+class TestUrl(object):
     @pytest.mark.parametrize('url', [
         'http://www.djangoproject.com/',
         'http://localhost/',
@@ -346,7 +344,7 @@ class UrlTest(object):
     def test_bad_url(self, url):
         with pytest.raises(ValueError) as cm:
             inputs.url(url)
-        assert text_type(cm.value).startswith('{0} is not a valid URL'.format(url))
+        assert str(cm.value).startswith('{0} is not a valid URL'.format(url))
 
     @pytest.mark.parametrize('url', [
         'google.com',
@@ -357,13 +355,13 @@ class UrlTest(object):
     def test_bad_url_with_suggestion(self, url):
         with pytest.raises(ValueError) as cm:
             inputs.url(url)
-        assert text_type(cm.value) == '{0} is not a valid URL. Did you mean: http://{0}'.format(url)
+        assert str(cm.value) == '{0} is not a valid URL. Did you mean: http://{0}'.format(url)
 
     def test_schema(self):
         assert inputs.url.__schema__ == {'type': 'string', 'format': 'url'}
 
 
-class IPTest(object):
+class TestIP(object):
     @pytest.mark.parametrize('value', [
         '200.8.9.10',
         '127.0.0.1',
@@ -398,7 +396,7 @@ class IPTest(object):
         assert inputs.ip.__schema__ == {'type': 'string', 'format': 'ip'}
 
 
-class IPv4Test(object):
+class TestIPv4(object):
     @pytest.mark.parametrize('value', [
         '200.8.9.10',
         '127.0.0.1',
@@ -433,7 +431,7 @@ class IPv4Test(object):
         assert inputs.ipv4.__schema__ == {'type': 'string', 'format': 'ipv4'}
 
 
-class IPv6Test(object):
+class TestIPv6(object):
     @pytest.mark.parametrize('value', [
         '2001:db8:85a3::8a2e:370:7334',
         '::1',
@@ -468,7 +466,7 @@ class IPv6Test(object):
         assert inputs.ipv6.__schema__ == {'type': 'string', 'format': 'ipv6'}
 
 
-class EmailTest(object):
+class TestEmail(object):
 
     def assert_bad_email(self, validator, value, msg=None):
         msg = msg or '{0} is not a valid email'
@@ -510,7 +508,7 @@ class EmailTest(object):
         assert email(value) == value
 
     @pytest.mark.parametrize('value', [
-        'coucou@not-found.fr',
+        'coucou@not-found.not-found.xxxaaxasdxx',
         'me@localhost',
         'me@127.0.0.1',
         'me@127.1.2.3',
@@ -648,7 +646,7 @@ class EmailTest(object):
         assert inputs.email().__schema__ == {'type': 'string', 'format': 'email'}
 
 
-class RegexTest(object):
+class TestRegex(object):
     @pytest.mark.parametrize('value', [
         '123',
         '1234567890',
@@ -677,7 +675,7 @@ class RegexTest(object):
         assert inputs.regex(r'^[0-9]+$').__schema__ == {'type': 'string', 'pattern': '^[0-9]+$'}
 
 
-class BooleanTest(object):
+class TestBoolean(object):
     def test_false(self):
         assert inputs.boolean('False') is False
 
@@ -716,7 +714,7 @@ class BooleanTest(object):
         assert inputs.boolean.__schema__ == {'type': 'boolean'}
 
 
-class DateTest(object):
+class TestDate(object):
     def test_later_than_1900(self):
         assert inputs.date('1900-01-01') == datetime(1900, 1, 1)
 
@@ -731,7 +729,7 @@ class DateTest(object):
         assert inputs.date.__schema__ == {'type': 'string', 'format': 'date'}
 
 
-class NaturalTest(object):
+class TestNatural(object):
     def test_negative(self):
         with pytest.raises(ValueError):
             inputs.natural(-1)
@@ -747,7 +745,7 @@ class NaturalTest(object):
         assert inputs.natural.__schema__ == {'type': 'integer', 'minimum': 0}
 
 
-class PositiveTest(object):
+class TestPositive(object):
     def test_positive(self):
         assert inputs.positive(1) == 1
         assert inputs.positive(10000) == 10000
@@ -764,7 +762,7 @@ class PositiveTest(object):
         assert inputs.positive.__schema__ == {'type': 'integer', 'minimum': 0, 'exclusiveMinimum': True}
 
 
-class IntRangeTest(object):
+class TestIntRange(object):
     def test_valid_range(self):
         int_range = inputs.int_range(1, 5)
         assert int_range(3) == 3
@@ -917,7 +915,7 @@ interval_test_values = [(
 )]
 
 
-class IsoIntervalTest(object):
+class TestIsoInterval(object):
     @pytest.mark.parametrize('value,expected', interval_test_values)
     def test_valid_value(self, value, expected):
         assert inputs.iso8601interval(value) == expected

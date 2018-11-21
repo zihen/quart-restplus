@@ -1,4 +1,4 @@
-from flask_restplus import Namespace, Resource, fields
+from quart_restplus import Namespace, Resource, fields
 
 api = Namespace('dogs', description='Dogs related operations')
 
@@ -17,7 +17,7 @@ class DogList(Resource):
     @api.doc('list_dogs')
     @api.marshal_list_with(dog)
     def get(self):
-        '''List all dogs'''
+        """List all dogs"""
         return DOGS
 
 
@@ -28,7 +28,7 @@ class Dog(Resource):
     @api.doc('get_dog')
     @api.marshal_with(dog)
     def get(self, id):
-        '''Fetch a dog given its identifier'''
+        """Fetch a dog given its identifier"""
         for dog in DOGS:
             if dog['id'] == id:
                 return dog

@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
-
 try:
     from ujson import dumps
 except ImportError:
     from json import dumps
 
-from flask import make_response, current_app
+from quart import make_response, current_app
 
 
-def output_json(data, code, headers=None):
-    '''Makes a Flask response with a JSON encoded body'''
+async def output_json(data, code, headers=None):
+    """Makes a Quart response with a JSON encoded body"""
 
     settings = current_app.config.get('RESTPLUS_JSON', {})
 
@@ -21,9 +19,9 @@ def output_json(data, code, headers=None):
         settings.setdefault('indent', 4)
 
     # always end the json dumps with a new line
-    # see https://github.com/mitsuhiko/flask/pull/1262
+    # see https://github.com/mitsuhiko/quart/pull/1262
     dumped = dumps(data, **settings) + "\n"
 
-    resp = make_response(dumped, code)
+    resp = await make_response(dumped, code)
     resp.headers.extend(headers or {})
     return resp

@@ -1,604 +1,649 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import json
 import pytest
+import quart_restplus as restplus
 
-from flask import Blueprint, abort
-from flask.signals import got_request_exception
+from http import HTTPStatus
+from quart import Blueprint, abort
+from quart.signals import got_request_exception
+from quart.exceptions import (
+    HTTPException,
+    HTTPStatusException,
+    BadRequest,
+    NotFound
+)
+from quart_restplus.utils import quote_etag, unquote_etag
 
-from werkzeug.exceptions import HTTPException, BadRequest, NotFound, Aborter
-from werkzeug.http import quote_etag, unquote_etag
 
-import flask_restplus as restplus
+def test_abort_type():
+    with pytest.raises(HTTPException):
+        restplus.abort(404)
 
 
-class ErrorsTest(object):
-    def test_abort_type(self):
-        with pytest.raises(HTTPException):
-            restplus.abort(404)
+def test_abort_data():
+    with pytest.raises(HTTPException) as cm:
+        restplus.abort(404, foo='bar')
+    assert cm.value.data == {'foo': 'bar'}
 
-    def test_abort_data(self):
-        with pytest.raises(HTTPException) as cm:
-            restplus.abort(404, foo='bar')
-        assert cm.value.data == {'foo': 'bar'}
 
-    def test_abort_no_data(self):
-        with pytest.raises(HTTPException) as cm:
-            restplus.abort(404)
-        assert not hasattr(cm.value, 'data')
+def test_abort_no_data():
+    with pytest.raises(HTTPException) as cm:
+        restplus.abort(404)
+    assert not hasattr(cm.value, 'data')
 
-    def test_abort_custom_message(self):
-        with pytest.raises(HTTPException) as cm:
-            restplus.abort(404, 'My message')
-        assert cm.value.data['message'] == 'My message'
 
-    def test_abort_code_only_with_defaults(self, app, client):
-        api = restplus.Api(app)
+def test_abort_custom_message():
+    with pytest.raises(HTTPException) as cm:
+        restplus.abort(404, 'My message')
+    assert cm.value.data['message'] == 'My message'
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                api.abort(403)
 
-        response = client.get('/test/')
-        assert response.status_code == 403
-        assert response.content_type == 'application/json'
+async def test_abort_code_only_with_defaults(app, client):
+    api = restplus.Api(app)
 
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            api.abort(403)
 
-    def test_abort_with_message(self, app, client):
-        api = restplus.Api(app)
+    response = await client.get('/test/')
+    assert response.status_code == 403
+    assert response.content_type == 'application/json'
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                api.abort(403, 'A message')
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-        response = client.get('/test/')
-        assert response.status_code == 403
-        assert response.content_type == 'application/json'
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data['message'] == 'A message'
+async def test_abort_with_message(app, client):
+    api = restplus.Api(app)
 
-    def test_abort_with_lazy_init(self, app, client):
-        api = restplus.Api()
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            api.abort(403, 'A message')
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                api.abort(403)
+    response = await client.get('/test/')
+    assert response.status_code == 403
+    assert response.content_type == 'application/json'
 
-        api.init_app(app)
+    data = json.loads(await response.get_data(False))
+    assert data['message'] == 'A message'
 
-        response = client.get('/test/')
-        assert response.status_code == 403
-        assert response.content_type == 'application/json'
 
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+async def test_abort_with_lazy_init(app, client):
+    api = restplus.Api()
 
-    def test_abort_on_exception(self, app, client):
-        api = restplus.Api(app)
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            api.abort(403)
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise ValueError()
+    api.init_app(app)
 
-        response = client.get('/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
+    response = await client.get('/test/')
+    assert response.status_code == 403
+    assert response.content_type == 'application/json'
 
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-    def test_abort_on_exception_with_lazy_init(self, app, client):
-        api = restplus.Api()
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise ValueError()
+async def test_abort_on_exception(app, client):
+    api = restplus.Api(app)
 
-        api.init_app(app)
-
-        response = client.get('/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
-
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise ValueError()
 
-    def test_errorhandler_for_exception_inheritance(self, app, client):
-        api = restplus.Api(app)
+    response = await client.get('/test/')
+    assert response.status_code == 500
+    assert response.content_type == 'application/json'
 
-        class CustomException(RuntimeError):
-            pass
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
 
-        @api.errorhandler(RuntimeError)
-        def handle_custom_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
+async def test_abort_on_exception_with_lazy_init(app, client):
+    api = restplus.Api()
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise ValueError()
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
+    api.init_app(app)
 
-    def test_errorhandler_for_custom_exception(self, app, client):
-        api = restplus.Api(app)
+    response = await client.get('/test/')
+    assert response.status_code == 500
+    assert response.content_type == 'application/json'
 
-        class CustomException(RuntimeError):
-            pass
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
 
-        @api.errorhandler(CustomException)
-        def handle_custom_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
+async def test_errorhandler_for_exception_inheritance(app, client):
+    api = restplus.Api(app)
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
+    class CustomException(RuntimeError):
+        pass
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
 
-    def test_errorhandler_for_custom_exception_with_headers(self, app, client):
-        api = restplus.Api(app)
+    @api.errorhandler(RuntimeError)
+    def handle_custom_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
 
-        class CustomException(RuntimeError):
-            pass
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
 
-        @api.errorhandler(CustomException)
-        def handle_custom_exception(error):
-            return {'message': 'some maintenance'}, 503, {'Retry-After': 120}
 
-        response = client.get('/test/')
-        assert response.status_code == 503
-        assert response.content_type == 'application/json'
+async def test_errorhandler_for_custom_exception(app, client):
+    api = restplus.Api(app)
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {'message': 'some maintenance'}
-        assert response.headers['Retry-After'] == '120'
+    class CustomException(RuntimeError):
+        pass
 
-    def test_errorhandler_for_httpexception(self, app, client):
-        api = restplus.Api(app)
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise BadRequest()
+    @api.errorhandler(CustomException)
+    def handle_custom_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
 
-        @api.errorhandler(BadRequest)
-        def handle_badrequest_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': str(BadRequest()),
-            'test': 'value',
-        }
 
-    def test_errorhandler_with_namespace(self, app, client):
-        api = restplus.Api(app)
+async def test_errorhandler_for_custom_exception_with_headers(app, client):
+    api = restplus.Api(app)
 
-        ns = restplus.Namespace("ExceptionHandler", path="/")
+    class CustomException(RuntimeError):
+        pass
 
-        class CustomException(RuntimeError):
-            pass
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
 
-        @ns.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
+    @api.errorhandler(CustomException)
+    def handle_custom_exception(error):
+        return {'message': 'some maintenance'}, 503, {'Retry-After': 120}
 
-        @ns.errorhandler(CustomException)
-        def handle_custom_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
+    response = await client.get('/test/')
+    assert response.status_code == 503
+    assert response.content_type == 'application/json'
 
-        api.add_namespace(ns)
+    data = json.loads(await response.get_data(False))
+    assert data == {'message': 'some maintenance'}
+    assert response.headers['Retry-After'] == 120
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
+async def test_errorhandler_for_httpexception(app, client):
+    api = restplus.Api(app)
 
-    def test_errorhandler_with_namespace_from_api(self, app, client):
-        api = restplus.Api(app)
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise BadRequest()
 
-        ns = api.namespace("ExceptionHandler", path="/")
+    @api.errorhandler(BadRequest)
+    def handle_badrequest_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
 
-        class CustomException(RuntimeError):
-            pass
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
 
-        @ns.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': str(BadRequest()),
+        'test': 'value',
+    }
 
-        @ns.errorhandler(CustomException)
-        def handle_custom_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
+async def test_errorhandler_with_namespace(app, client):
+    api = restplus.Api(app)
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
+    ns = restplus.Namespace("ExceptionHandler", path="/")
 
-    def test_default_errorhandler(self, app, client):
-        api = restplus.Api(app)
+    class CustomException(RuntimeError):
+        pass
 
-        @api.route('/test/')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise Exception('error')
+    @ns.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
 
-        response = client.get('/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
+    @ns.errorhandler(CustomException)
+    def handle_custom_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
 
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+    api.add_namespace(ns)
 
-    def test_default_errorhandler_with_propagate_true(self, app, client):
-        blueprint = Blueprint('api', __name__, url_prefix='/api')
-        api = restplus.Api(blueprint)
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
 
-        @api.route('/test/')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise Exception('error')
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
 
-        app.register_blueprint(blueprint)
 
-        app.config['PROPAGATE_EXCEPTIONS'] = True
+async def test_errorhandler_with_namespace_from_api(app, client):
+    api = restplus.Api(app)
 
-        response = client.get('/api/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
+    ns = api.namespace("ExceptionHandler", path="/")
 
-        data = json.loads(response.data.decode('utf8'))
-        assert 'message' in data
+    class CustomException(RuntimeError):
+        pass
 
-    def test_custom_default_errorhandler(self, app, client):
-        api = restplus.Api(app)
+    @ns.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise Exception('error')
+    @ns.errorhandler(CustomException)
+    def handle_custom_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
 
-        @api.errorhandler
-        def default_error_handler(error):
-            return {'message': str(error), 'test': 'value'}, 500
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
 
-        response = client.get('/test/')
-        assert response.status_code == 500
-        assert response.content_type == 'application/json'
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
 
-    def test_custom_default_errorhandler_with_headers(self, app, client):
-        api = restplus.Api(app)
+async def test_default_errorhandler(app, client):
+    api = restplus.Api(app)
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise Exception('error')
+    @api.route('/test/')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise Exception('error')
 
-        @api.errorhandler
-        def default_error_handler(error):
-            return {'message': 'some maintenance'}, 503, {'Retry-After': 120}
+    response = await client.get('/test/')
+    assert response.status_code == 500
+    assert response.content_type == 'application/json'
 
-        response = client.get('/test/')
-        assert response.status_code == 503
-        assert response.content_type == 'application/json'
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {'message': 'some maintenance'}
-        assert response.headers['Retry-After'] == '120'
 
-    def test_errorhandler_lazy(self, app, client):
-        api = restplus.Api()
+async def test_default_errorhandler_with_propagate_true(app, client):
+    blueprint = Blueprint('api', __name__, url_prefix='/api')
+    api = restplus.Api(blueprint)
 
-        class CustomException(RuntimeError):
-            pass
+    @api.route('/test/')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise Exception('error')
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                raise CustomException('error')
+    app.register_blueprint(blueprint)
 
-        @api.errorhandler(CustomException)
-        def handle_custom_exception(error):
-            return {'message': str(error), 'test': 'value'}, 400
+    app.config['PROPAGATE_EXCEPTIONS'] = True
 
-        api.init_app(app)
+    response = await client.get('/api/test/')
+    assert response.status_code == 500
+    assert response.content_type == 'application/json'
 
-        response = client.get('/test/')
-        assert response.status_code == 400
-        assert response.content_type == 'application/json'
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
 
-        data = json.loads(response.data.decode('utf8'))
-        assert data == {
-            'message': 'error',
-            'test': 'value',
-        }
 
-    def test_handle_api_error(self, app, client):
-        api = restplus.Api(app)
+async def test_custom_default_errorhandler(app, client):
+    api = restplus.Api(app)
 
-        @api.route('/api', endpoint='api')
-        class Test(restplus.Resource):
-            def get(self):
-                abort(404)
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise Exception('error')
 
-        response = client.get("/api")
-        assert response.status_code == 404
-        assert response.headers['Content-Type'] == 'application/json'
-        data = json.loads(response.data.decode())
-        assert 'message' in data
+    @api.errorhandler
+    def default_error_handler(error):
+        return {'message': str(error), 'test': 'value'}, 500
 
-    def test_handle_non_api_error(self, app, client):
-        restplus.Api(app)
+    response = await client.get('/test/')
+    assert response.status_code == 500
+    assert response.content_type == 'application/json'
 
-        response = client.get("/foo")
-        assert response.status_code == 404
-        assert response.headers['Content-Type'] == 'text/html'
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
 
-    def test_non_api_error_404_catchall(self, app, client):
-        api = restplus.Api(app, catch_all_404s=True)
 
-        response = client.get("/foo")
-        assert response.headers['Content-Type'] == api.default_mediatype
+async def test_custom_default_errorhandler_with_headers(app, client):
+    api = restplus.Api(app)
 
-    def test_handle_error_signal(self, app):
-        api = restplus.Api(app)
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise Exception('error')
 
-        exception = BadRequest()
+    @api.errorhandler
+    def default_error_handler(error):
+        return {'message': 'some maintenance'}, 503, {'Retry-After': 120}
 
-        recorded = []
+    response = await client.get('/test/')
+    assert response.status_code == 503
+    assert response.content_type == 'application/json'
 
-        def record(sender, exception):
-            recorded.append(exception)
+    data = json.loads(await response.get_data(False))
+    assert data == {'message': 'some maintenance'}
+    assert response.headers['Retry-After'] == 120
 
-        got_request_exception.connect(record, app)
+
+async def test_errorhandler_lazy(app, client):
+    api = restplus.Api()
+
+    class CustomException(RuntimeError):
+        pass
+
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            raise CustomException('error')
+
+    @api.errorhandler(CustomException)
+    def handle_custom_exception(error):
+        return {'message': str(error), 'test': 'value'}, 400
+
+    api.init_app(app)
+
+    response = await client.get('/test/')
+    assert response.status_code == 400
+    assert response.content_type == 'application/json'
+
+    data = json.loads(await response.get_data(False))
+    assert data == {
+        'message': 'error',
+        'test': 'value',
+    }
+
+
+async def test_handle_api_error(app, client):
+    api = restplus.Api(app)
+
+    @api.route('/api', endpoint='api')
+    class Test(restplus.Resource):
+        async def get(self):
+            abort(404)
+
+    response = await client.get('/api')
+    assert response.status_code == 404
+    assert response.headers['Content-Type'] == 'application/json'
+    data = json.loads(await response.get_data(False))
+    assert 'message' in data
+
+
+async def test_handle_non_api_error(app, client):
+    restplus.Api(app)
+
+    response = await client.get('/foo')
+    assert response.status_code == 404
+    assert response.headers['Content-Type'] == 'text/html'
+
+
+async def test_non_api_error_404_catchall(app, client):
+    api = restplus.Api(app, catch_all_404s=True)
+
+    response = await client.get('/foo')
+    assert response.headers['Content-Type'] == api.default_mediatype
+
+
+async def test_handle_error_signal(app):
+    api = restplus.Api(app)
+    exception = BadRequest()
+    recorded = []
+
+    def record(sender, exception):
+        recorded.append(exception)
+
+    async with app.test_request_context():
+        got_request_exception.connect(record, app, weak=False)
         try:
-            # with self.app.test_request_context("/foo"):
-                api.handle_error(exception)
-                assert len(recorded) == 1
-                assert exception is recorded[0]
+            await api.handle_error(exception)
+            assert len(recorded) == 1
+            assert exception is recorded[0]
         finally:
             got_request_exception.disconnect(record, app)
 
-    def test_handle_error(self, app):
-        api = restplus.Api(app)
 
-        response = api.handle_error(BadRequest())
+async def test_handle_error(app):
+    api = restplus.Api(app)
+
+    async with app.test_request_context():
+        err = BadRequest()
+        response = await api.handle_error(err)
         assert response.status_code == 400
-        assert json.loads(response.data.decode()) == {
-            'message': BadRequest.description,
+        assert json.loads(await response.get_data(False)) == {
+            'message': err.description,
         }
 
-    def test_handle_error_does_not_duplicate_content_length(self, app):
-        api = restplus.Api(app)
 
-        # with self.app.test_request_context("/foo"):
-        response = api.handle_error(BadRequest())
+async def test_handle_error_does_not_duplicate_content_length(app):
+    api = restplus.Api(app)
+
+    async with app.test_request_context():
+        response = await api.handle_error(BadRequest())
         assert len(response.headers.getlist('Content-Length')) == 1
 
-    def test_handle_smart_errors(self, app):
-        api = restplus.Api(app)
-        view = restplus.Resource
 
-        api.add_resource(view, '/foo', endpoint='bor')
-        api.add_resource(view, '/fee', endpoint='bir')
-        api.add_resource(view, '/fii', endpoint='ber')
+async def test_handle_smart_errors(app):
+    api = restplus.Api(app)
+    view = restplus.Resource
 
-        with app.test_request_context("/faaaaa"):
-            response = api.handle_error(NotFound())
-            assert response.status_code == 404
-            assert json.loads(response.data.decode()) == {
-                'message': NotFound.description,
-            }
+    api.add_resource(view, '/foo', endpoint='bor')
+    api.add_resource(view, '/fee', endpoint='bir')
+    api.add_resource(view, '/fii', endpoint='ber')
 
-        with app.test_request_context("/fOo"):
-            response = api.handle_error(NotFound())
-            assert response.status_code == 404
-            assert 'did you mean /foo ?' in response.data.decode()
+    async with app.test_request_context('/faaaaa'):
+        err = NotFound()
+        response = await api.handle_error(err)
+        assert response.status_code == 404
+        assert json.loads(await response.get_data(False)) == {
+            'message': err.description,
+        }
+
+    async with app.test_request_context('/fOo'):
+        err = NotFound()
+        response = await api.handle_error(err)
+        assert response.status_code == 404
+        assert 'did you mean /foo ?' in await response.get_data(False)
 
         app.config['ERROR_404_HELP'] = False
 
-        response = api.handle_error(NotFound())
+        err = NotFound()
+        response = await api.handle_error(err)
         assert response.status_code == 404
-        assert json.loads(response.data.decode()) == {
-            'message': NotFound.description
+        assert json.loads(await response.get_data(False)) == {
+            'message': err.description
         }
 
-    def test_handle_include_error_message(self, app):
-        api = restplus.Api(app)
-        view = restplus.Resource
 
-        api.add_resource(view, '/foo', endpoint='bor')
+async def test_handle_include_error_message(app):
+    api = restplus.Api(app)
+    view = restplus.Resource
 
-        with app.test_request_context("/faaaaa"):
-            response = api.handle_error(NotFound())
-            assert 'message' in json.loads(response.data.decode())
+    api.add_resource(view, '/foo', endpoint='bor')
 
-    def test_handle_not_include_error_message(self, app):
-        app.config['ERROR_INCLUDE_MESSAGE'] = False
+    async with app.test_request_context('/faaaaa'):
+        response = await api.handle_error(NotFound())
+        assert 'message' in json.loads(await response.get_data(False))
 
-        api = restplus.Api(app)
-        view = restplus.Resource
 
-        api.add_resource(view, '/foo', endpoint='bor')
+async def test_handle_not_include_error_message(app):
+    app.config['ERROR_INCLUDE_MESSAGE'] = False
 
-        with app.test_request_context("/faaaaa"):
-            response = api.handle_error(NotFound())
-            assert 'message' not in json.loads(response.data.decode())
+    api = restplus.Api(app)
+    view = restplus.Resource
 
-    def test_error_router_falls_back_to_original(self, app, mocker):
-        api = restplus.Api(app)
-        app.handle_exception = mocker.Mock()
-        api.handle_error = mocker.Mock(side_effect=Exception())
-        api._has_fr_route = mocker.Mock(return_value=True)
-        exception = mocker.Mock(spec=HTTPException)
+    api.add_resource(view, '/foo', endpoint='bor')
 
-        api.error_router(app.handle_exception, exception)
+    async with app.test_request_context('/faaaaa'):
+        response = await api.handle_error(NotFound())
+        assert 'message' not in json.loads(await response.get_data(False))
 
-        app.handle_exception.assert_called_with(exception)
 
-    def test_fr_405(self, app, client):
-        api = restplus.Api(app)
+async def test_error_router_falls_back_to_original(app, mocker):
+    api = restplus.Api(app)
+    api.handle_error = mocker.Mock(side_effect=Exception())
+    api._has_fr_route = mocker.Mock(return_value=True)
+    exception = mocker.Mock(spec=HTTPException)
+    called = []
 
-        @api.route('/ids/<int:id>', endpoint='hello')
-        class HelloWorld(restplus.Resource):
-            def get(self):
-                return {}
+    async def handle_exception(e):
+        called.append(e)
+        mocker.Mock()(e)
 
-        response = client.post('/ids/3')
-        assert response.status_code == 405
-        assert response.content_type == api.default_mediatype
-        # Allow can be of the form 'GET, PUT, POST'
-        allow = ', '.join(set(response.headers.get_all('Allow')))
-        allow = set(method.strip() for method in allow.split(','))
-        assert allow == set(['HEAD', 'OPTIONS', 'GET'])
+    app.handle_exception = handle_exception
 
-    @pytest.mark.options(debug=True)
-    def test_exception_header_forwarded(self, app, client):
-        '''Ensure that HTTPException's headers are extended properly'''
-        api = restplus.Api(app)
+    async with app.test_request_context():
+        await api.error_router(app.handle_exception, exception)
+        assert len(called) == 1
+        assert called[0] is exception
 
-        class NotModified(HTTPException):
-            code = 304
 
-            def __init__(self, etag, *args, **kwargs):
-                super(NotModified, self).__init__(*args, **kwargs)
-                self.etag = quote_etag(etag)
+async def test_fr_405(app, client):
+    api = restplus.Api(app)
 
-            def get_headers(self, *args, **kwargs):
-                return [('ETag', self.etag)]
+    @api.route('/ids/<int:id>', endpoint='hello')
+    class HelloWorld(restplus.Resource):
+        async def get(self):
+            return {}
 
-        custom_abort = Aborter(mapping={304: NotModified})
+    response = await client.post('/ids/3')
+    assert response.status_code == 405
+    assert response.content_type == api.default_mediatype
+    # Allow can be of the form 'GET, PUT, POST'
+    allow = ', '.join(set(response.headers.getall('Allow')))
+    allow = set(method.strip() for method in allow.split(','))
+    assert allow == {'HEAD', 'OPTIONS', 'GET'}
 
-        @api.route('/foo')
-        class Foo1(restplus.Resource):
-            def get(self):
-                custom_abort(304, etag='myETag')
 
-        foo = client.get('/foo')
-        assert foo.get_etag() == unquote_etag(quote_etag('myETag'))
+@pytest.mark.config(debug=True)
+async def test_exception_header_forwarded(app, client):
+    """Ensure that HTTPException's headers are extended properly"""
+    api = restplus.Api(app)
 
-    def test_handle_server_error(self, app):
-        api = restplus.Api(app)
+    class NotModified(HTTPStatusException):
+        status = HTTPStatus.NOT_MODIFIED
 
-        resp = api.handle_error(Exception())
+        def __init__(self, etag, *args, **kwargs):
+            super(NotModified, self).__init__(*args, **kwargs)
+            self.etag = quote_etag(etag)
+
+        def get_headers(self, *args, **kwargs):
+            return [('ETag', self.etag)]
+
+    @api.route('/foo')
+    class Foo1(restplus.Resource):
+        async def get(self):
+            raise NotModified('myETag')
+
+    foo = await client.get('/foo')
+    assert foo.get_etag() == unquote_etag(quote_etag('myETag'))
+
+
+async def test_handle_server_error(app):
+    api = restplus.Api(app)
+
+    async with app.test_request_context():
+        resp = await api.handle_error(Exception())
         assert resp.status_code == 500
-        assert json.loads(resp.data.decode()) == {
-            'message': "Internal Server Error"
+        assert json.loads(await resp.get_data(False)) == {
+            'message': 'Internal Server Error'
         }
 
-    def test_handle_error_with_code(self, app):
-        api = restplus.Api(app, serve_challenge_on_401=True)
 
-        exception = Exception()
-        exception.code = "Not an integer"
-        exception.data = {'foo': 'bar'}
+async def test_handle_error_with_code(app):
+    api = restplus.Api(app, serve_challenge_on_401=True)
 
-        response = api.handle_error(exception)
+    exception = Exception()
+    exception.code = 'Not an integer'
+    exception.data = {'foo': 'bar'}
+
+    async with app.test_request_context():
+        response = await api.handle_error(exception)
         assert response.status_code == 500
-        assert json.loads(response.data.decode()) == {"foo": "bar"}
+        assert json.loads(await response.get_data(False)) == {'foo': 'bar'}
 
-    def test_errorhandler_swagger_doc(self, app, client):
-        api = restplus.Api(app)
 
-        class CustomException(RuntimeError):
+async def test_errorhandler_swagger_doc(app, client):
+    api = restplus.Api(app)
+
+    class CustomException(RuntimeError):
+        pass
+
+    error = api.model('Error', {
+        'message': restplus.fields.String()
+    })
+
+    @api.route('/test/', endpoint='test')
+    class TestResource(restplus.Resource):
+        async def get(self):
+            """
+            Do something
+
+            :raises CustomException: In case of something
+            """
             pass
 
-        error = api.model('Error', {
-            'message': restplus.fields.String()
-        })
+    @api.errorhandler(CustomException)
+    @api.header('Custom-Header', 'Some custom header')
+    @api.marshal_with(error, code=503)
+    async def handle_custom_exception(error):
+        """Some description"""
+        pass
 
-        @api.route('/test/', endpoint='test')
-        class TestResource(restplus.Resource):
-            def get(self):
-                '''
-                Do something
+    specs = await client.get_specs()
 
-                :raises CustomException: In case of something
-                '''
-                pass
+    assert 'Error' in specs['definitions']
+    assert 'CustomException' in specs['responses']
 
-        @api.errorhandler(CustomException)
-        @api.header('Custom-Header', 'Some custom header')
-        @api.marshal_with(error, code=503)
-        def handle_custom_exception(error):
-            '''Some description'''
-            pass
-
-        specs = client.get_specs()
-
-        assert 'Error' in specs['definitions']
-        assert 'CustomException' in specs['responses']
-
-        response = specs['responses']['CustomException']
-        assert response['description'] == 'Some description'
-        assert response['schema'] == {
-            '$ref': '#/definitions/Error'
+    response = specs['responses']['CustomException']
+    assert response['description'] == 'Some description'
+    assert response['schema'] == {
+        '$ref': '#/definitions/Error'
+    }
+    assert response['headers'] == {
+        'Custom-Header': {
+            'description': 'Some custom header',
+            'type': 'string'
         }
-        assert response['headers'] == {
-            'Custom-Header': {
-                'description': 'Some custom header',
-                'type': 'string'
-            }
-        }
+    }
 
-        operation = specs['paths']['/test/']['get']
-        assert 'responses' in operation
-        assert operation['responses'] == {
-            '503': {
-                '$ref': '#/responses/CustomException'
-            }
+    operation = specs['paths']['/test/']['get']
+    assert 'responses' in operation
+    assert operation['responses'] == {
+        '503': {
+            '$ref': '#/responses/CustomException'
         }
+    }

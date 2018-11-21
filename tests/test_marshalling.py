@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import pytest
 
-from flask_restplus import (
-    marshal, marshal_with, marshal_with_field, fields, Api, Resource
+from quart_restplus import (
+    marshal,
+    marshal_with,
+    marshal_with_field,
+    fields,
+    Api,
+    Resource
 )
 
 from collections import OrderedDict
@@ -16,7 +19,7 @@ class HelloWorld(Resource):
         return {}
 
 
-class MarshallingTest(object):
+class TestMarshalling(object):
     def test_marshal(self):
         model = OrderedDict([('foo', fields.Raw)])
         marshal_dict = OrderedDict([('foo', 'bar'), ('bat', 'baz')])
@@ -51,68 +54,71 @@ class MarshallingTest(object):
         output = marshal(marshal_dict, model, skip_none=True)
         assert output == {'baz': 'biz'}
 
-    def test_marshal_decorator(self):
+    async def test_marshal_decorator(self):
         model = OrderedDict([('foo', fields.Raw)])
 
         @marshal_with(model)
-        def try_me():
+        async def try_me():
             return OrderedDict([('foo', 'bar'), ('bat', 'baz')])
-        assert try_me() == {'foo': 'bar'}
 
-    def test_marshal_decorator_with_envelope(self):
+        assert (await try_me()) == {'foo': 'bar'}
+
+    async def test_marshal_decorator_with_envelope(self):
         model = OrderedDict([('foo', fields.Raw)])
 
         @marshal_with(model, envelope='hey')
-        def try_me():
+        async def try_me():
             return OrderedDict([('foo', 'bar'), ('bat', 'baz')])
 
-        assert try_me() == {'hey': {'foo': 'bar'}}
+        assert (await try_me()) == {'hey': {'foo': 'bar'}}
 
-    def test_marshal_decorator_with_skip_none(self):
+    async def test_marshal_decorator_with_skip_none(self):
         model = OrderedDict([('foo', fields.Raw), ('bat', fields.Raw), ('qux', fields.Raw)])
 
         @marshal_with(model, skip_none=True)
-        def try_me():
+        async def try_me():
             return OrderedDict([('foo', 'bar'), ('bat', None)])
 
-        assert try_me() == {'foo': 'bar'}
+        assert (await try_me()) == {'foo': 'bar'}
 
-    def test_marshal_decorator_tuple(self):
+    async def test_marshal_decorator_tuple(self):
         model = OrderedDict([('foo', fields.Raw)])
 
         @marshal_with(model)
-        def try_me():
+        async def try_me():
             headers = {'X-test': 123}
             return OrderedDict([('foo', 'bar'), ('bat', 'baz')]), 200, headers
-        assert try_me() == ({'foo': 'bar'}, 200, {'X-test': 123})
 
-    def test_marshal_decorator_tuple_with_envelope(self):
+        assert (await try_me()) == ({'foo': 'bar'}, 200, {'X-test': 123})
+
+    async def test_marshal_decorator_tuple_with_envelope(self):
         model = OrderedDict([('foo', fields.Raw)])
 
         @marshal_with(model, envelope='hey')
-        def try_me():
+        async def try_me():
             headers = {'X-test': 123}
             return OrderedDict([('foo', 'bar'), ('bat', 'baz')]), 200, headers
 
-        assert try_me() == ({'hey': {'foo': 'bar'}}, 200, {'X-test': 123})
+        assert (await try_me()) == ({'hey': {'foo': 'bar'}}, 200, {'X-test': 123})
 
-    def test_marshal_decorator_tuple_with_skip_none(self):
+    async def test_marshal_decorator_tuple_with_skip_none(self):
         model = OrderedDict([('foo', fields.Raw), ('bat', fields.Raw), ('qux', fields.Raw)])
 
         @marshal_with(model, skip_none=True)
-        def try_me():
+        async def try_me():
             headers = {'X-test': 123}
             return OrderedDict([('foo', 'bar'), ('bat', None)]), 200, headers
 
-        assert try_me() == ({'foo': 'bar'}, 200, {'X-test': 123})
+        assert (await try_me()) == ({'foo': 'bar'}, 200, {'X-test': 123})
 
-    def test_marshal_field_decorator(self):
+    async def test_marshal_field_decorator(self):
         model = fields.Raw
 
         @marshal_with_field(model)
-        def try_me():
+        async def try_me():
             return 'foo'
-        assert try_me() == 'foo'
+
+        assert (await try_me()) == 'foo'
 
     def test_marshal_field_decorator_tuple(self):
         model = fields.Raw
@@ -120,6 +126,7 @@ class MarshallingTest(object):
         @marshal_with_field(model)
         def try_me():
             return 'foo', 200, {'X-test': 123}
+
         assert try_me() == ('foo', 200, {'X-test': 123})
 
     def test_marshal_field(self):
@@ -284,6 +291,7 @@ class MarshallingTest(object):
             @property
             def fee(self):
                 return {'blah': 'cool'}
+
         model = OrderedDict([
             ('foo', fields.Raw),
             ('fee', fields.Nested(
@@ -310,6 +318,7 @@ class MarshallingTest(object):
             @property
             def fee(self):
                 return {'blah': 'cool', 'foe': None}
+
         model = OrderedDict([
             ('foo', fields.Raw),
             ('fee', fields.Nested(
@@ -388,32 +397,32 @@ class MarshallingTest(object):
                                 ('bar', OrderedDict([('a', 1), ('b', 2)]))])
         assert output == expected
 
-    @pytest.mark.options(debug=True)
-    def test_will_prettyprint_json_in_debug_mode(self, app, client):
+    async def test_will_prettyprint_json_in_debug_mode(self, app, client):
+        app.debug = True
         api = Api(app)
 
         class Foo1(Resource):
-            def get(self):
+            async def get(self):
                 return {'foo': 'bar', 'baz': 'asdf'}
 
         api.add_resource(Foo1, '/foo', endpoint='bar')
 
-        foo = client.get('/foo')
+        foo = await client.get('/foo')
 
         # Python's dictionaries have random order (as of "new" Pythons,
         # anyway), so we can't verify the actual output here.  We just
         # assert that they're properly prettyprinted.
-        lines = foo.data.splitlines()
-        lines = [line.decode() for line in lines]
+        data = await foo.get_data(False)
+        lines = data.splitlines()
         assert "{" == lines[0]
         assert lines[1].startswith('    ')
         assert lines[2].startswith('    ')
         assert "}" == lines[3]
 
         # Assert our trailing newline.
-        assert foo.data.endswith(b'\n')
+        assert data.endswith('\n')
 
-    def test_json_float_marshalled(self, app, client):
+    async def test_json_float_marshalled(self, app, client):
         api = Api(app)
 
         class FooResource(Resource):
@@ -424,6 +433,6 @@ class MarshallingTest(object):
 
         api.add_resource(FooResource, '/api')
 
-        resp = client.get('/api')
+        resp = await client.get('/api')
         assert resp.status_code == 200
-        assert resp.data.decode('utf-8') == '{"foo": 3.0}\n'
+        assert (await resp.get_data(False)) == '{"foo": 3.0}\n'

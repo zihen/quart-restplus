@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
-
 import logging
 import re
-import six
 
 from collections import OrderedDict
 from inspect import isclass
@@ -16,25 +13,25 @@ LEXER = re.compile(r'\{|\}|\,|[\w_:\-\*]+')
 
 
 class MaskError(RestError):
-    '''Raised when an error occurs on mask'''
+    """Raised when an error occurs on mask"""
     pass
 
 
 class ParseError(MaskError):
-    '''Raised when the mask parsing failed'''
+    """Raised when the mask parsing failed"""
     pass
 
 
 class Mask(OrderedDict):
-    '''
+    """
     Hold a parsed mask.
 
     :param str|dict|Mask mask: A mask, parsed or not
     :param bool skip: If ``True``, missing fields won't appear in result
-    '''
+    """
     def __init__(self, mask=None, skip=False, **kwargs):
         self.skip = skip
-        if isinstance(mask, six.string_types):
+        if isinstance(mask, str):
             super(Mask, self).__init__()
             self.parse(mask)
         elif isinstance(mask, (dict, OrderedDict)):
@@ -44,7 +41,7 @@ class Mask(OrderedDict):
             super(Mask, self).__init__(**kwargs)
 
     def parse(self, mask):
-        '''
+        """
         Parse a fields mask.
         Expect something in the form::
 
@@ -59,7 +56,7 @@ class Mask(OrderedDict):
         :param str mask: the mask string to parse
         :raises ParseError: when a mask is unparseable/invalid
 
-        '''
+        """
         if not mask:
             return
 
@@ -91,7 +88,7 @@ class Mask(OrderedDict):
             raise ParseError('Missing closing bracket')
 
     def clean(self, mask):
-        '''Remove unecessary characters'''
+        """Remove unecessary characters"""
         mask = mask.replace('\n', '').strip()
         # External brackets are optional
         if mask[0] == '{':
@@ -101,13 +98,13 @@ class Mask(OrderedDict):
         return mask
 
     def apply(self, data):
-        '''
+        """
         Apply a fields mask to the data.
 
         :param data: The data or model to apply mask on
         :raises MaskError: when unable to apply the mask
 
-        '''
+        """
         from . import fields
         # Should handle lists
         if isinstance(data, (list, tuple, set)):
@@ -128,16 +125,16 @@ class Mask(OrderedDict):
         return self.filter_data(data)
 
     def filter_data(self, data):
-        '''
+        """
         Handle the data filtering given a parsed mask
 
         :param dict data: the raw data to filter
         :param list mask: a parsed mask tofilter against
         :param bool skip: whether or not to skip missing fields
 
-        '''
+        """
         out = {}
-        for field, content in six.iteritems(self):
+        for field, content in self.items():
             if field == '*':
                 continue
             elif isinstance(content, Mask):
@@ -154,7 +151,7 @@ class Mask(OrderedDict):
                 out[field] = data.get(field, None)
 
         if '*' in self.keys():
-            for key, value in six.iteritems(data):
+            for key, value in data.items():
                 if key not in out:
                     out[key] = value
         return out
@@ -162,12 +159,12 @@ class Mask(OrderedDict):
     def __str__(self):
         return '{{{0}}}'.format(','.join([
             ''.join((k, str(v))) if isinstance(v, Mask) else k
-            for k, v in six.iteritems(self)
+            for k, v in self.items()
         ]))
 
 
 def apply(data, mask, skip=False):
-    '''
+    """
     Apply a fields mask to the data.
 
     :param data: The data or model to apply mask on
@@ -175,5 +172,5 @@ def apply(data, mask, skip=False):
     :param bool skip: If rue, missing field won't appear in result
     :raises MaskError: when unable to apply the mask
 
-    '''
+    """
     return Mask(mask, skip).apply(data)

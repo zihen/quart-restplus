@@ -1,16 +1,16 @@
 # needs: pip install python-simplexml
 from simplexml import dumps
-from flask import make_response, Flask
-from flask_restplus import Api, Resource, fields
+from quart import make_response, Quart
+from quart_restplus import Api, Resource, fields
 
 
 def output_xml(data, code, headers=None):
-    """Makes a Flask response with a XML encoded body"""
+    """Makes a Quart response with a XML encoded body"""
     resp = make_response(dumps({'response': data}), code)
     resp.headers.extend(headers or {})
     return resp
 
-app = Flask(__name__)
+app = Quart(__name__)
 api = Api(app, default_mediatype='application/xml')
 api.representations['application/xml'] = output_xml
 
@@ -31,7 +31,7 @@ class Hello(Resource):
     """
     @api.doc(model=hello_fields, params={'entry': 'The entry to wrap'})
     def get(self, entry):
-        '''Get a wrapped entry'''
+        """Get a wrapped entry"""
         return {'hello': entry}
 
 

@@ -1,11 +1,7 @@
-from flask import Flask
-from werkzeug.contrib.fixers import ProxyFix
+from quart import Quart
+from .zoo import api
 
-from zoo import api
-
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app)
-
+app = Quart(__name__)
 api.init_app(app)
 
 app.run(debug=True)

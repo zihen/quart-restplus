@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import pytest
+import quart_restplus as restplus
 
 from textwrap import dedent
-
-from flask import url_for, Blueprint
-from werkzeug.datastructures import FileStorage
-
-import flask_restplus as restplus
-
-from flask_restplus import inputs
+from quart import url_for, Blueprint
+from quart.datastructures import FileStorage
+from quart_restplus import inputs
 
 
-class SwaggerTest(object):
-    def test_specs_endpoint(self, api, client):
-        data = client.get_specs('')
+class TestSwagger:
+    async def test_specs_endpoint(self, api, client):
+        data = await client.get_specs()
         assert data['swagger'] == '2.0'
         assert data['basePath'] == '/'
         assert data['produces'] == ['application/json']
@@ -24,8 +19,8 @@ class SwaggerTest(object):
         assert 'info' in data
 
     @pytest.mark.api(prefix='/api')
-    def test_specs_endpoint_with_prefix(self, api, client):
-        data = client.get_specs('/api')
+    async def test_specs_endpoint_with_prefix(self, api, client):
+        data = await client.get_specs('/api')
         assert data['swagger'] == '2.0'
         assert data['basePath'] == '/api'
         assert data['produces'] == ['application/json']
@@ -33,31 +28,31 @@ class SwaggerTest(object):
         assert data['paths'] == {}
         assert 'info' in data
 
-    def test_specs_endpoint_produces(self, api, client):
+    async def test_specs_endpoint_produces(self, api, client):
         def output_xml(data, code, headers=None):
             pass
 
         api.representations['application/xml'] = output_xml
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert len(data['produces']) == 2
         assert 'application/json' in data['produces']
         assert 'application/xml' in data['produces']
 
-    def test_specs_endpoint_info(self, app, client):
+    async def test_specs_endpoint_info(self, app, client):
         api = restplus.Api(version='1.0',
-            title='My API',
-            description='This is a testing API',
-            terms_url='http://somewhere.com/terms/',
-            contact='Support',
-            contact_url='http://support.somewhere.com',
-            contact_email='contact@somewhere.com',
-            license='Apache 2.0',
-            license_url='http://www.apache.org/licenses/LICENSE-2.0.html'
-        )
+                           title='My API',
+                           description='This is a testing API',
+                           terms_url='http://somewhere.com/terms/',
+                           contact='Support',
+                           contact_url='http://support.somewhere.com',
+                           contact_email='contact@somewhere.com',
+                           license='Apache 2.0',
+                           license_url='http://www.apache.org/licenses/LICENSE-2.0.html'
+                           )
         api.init_app(app)
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['swagger'] == '2.0'
         assert data['basePath'] == '/'
         assert data['produces'] == ['application/json']
@@ -78,20 +73,20 @@ class SwaggerTest(object):
             'url': 'http://www.apache.org/licenses/LICENSE-2.0.html',
         }
 
-    def test_specs_endpoint_info_delayed(self, app, client):
+    async def test_specs_endpoint_info_delayed(self, app, client):
         api = restplus.Api(version='1.0')
         api.init_app(app,
-            title='My API',
-            description='This is a testing API',
-            terms_url='http://somewhere.com/terms/',
-            contact='Support',
-            contact_url='http://support.somewhere.com',
-            contact_email='contact@somewhere.com',
-            license='Apache 2.0',
-            license_url='http://www.apache.org/licenses/LICENSE-2.0.html'
-        )
+                     title='My API',
+                     description='This is a testing API',
+                     terms_url='http://somewhere.com/terms/',
+                     contact='Support',
+                     contact_url='http://support.somewhere.com',
+                     contact_email='contact@somewhere.com',
+                     license='Apache 2.0',
+                     license_url='http://www.apache.org/licenses/LICENSE-2.0.html'
+                     )
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert data['swagger'] == '2.0'
         assert data['basePath'] == '/'
@@ -113,8 +108,9 @@ class SwaggerTest(object):
             'url': 'http://www.apache.org/licenses/LICENSE-2.0.html',
         }
 
-    def test_specs_endpoint_info_callable(self, app, client):
-        api = restplus.Api(version=lambda: '1.0',
+    async def test_specs_endpoint_info_callable(self, app, client):
+        api = restplus.Api(
+            version=lambda: '1.0',
             title=lambda: 'My API',
             description=lambda: 'This is a testing API',
             terms_url=lambda: 'http://somewhere.com/terms/',
@@ -126,7 +122,7 @@ class SwaggerTest(object):
         )
         api.init_app(app)
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['swagger'] == '2.0'
         assert data['basePath'] == '/'
         assert data['produces'] == ['application/json']
@@ -147,74 +143,75 @@ class SwaggerTest(object):
             'url': 'http://www.apache.org/licenses/LICENSE-2.0.html',
         }
 
-    def test_specs_endpoint_no_host(self, app, client):
+    async def test_specs_endpoint_no_host(self, app, client):
         restplus.Api(app)
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert 'host' not in data
         assert data['basePath'] == '/'
 
-    @pytest.mark.options(server_name='api.restplus.org')
-    def test_specs_endpoint_host(self, app, client):
+    @pytest.mark.config(server_name='api.restplus.org')
+    async def test_specs_endpoint_host(self, app, client):
         # app.config['SERVER_NAME'] = 'api.restplus.org'
         restplus.Api(app)
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['host'] == 'api.restplus.org'
         assert data['basePath'] == '/'
 
-    @pytest.mark.options(server_name='api.restplus.org')
-    def test_specs_endpoint_host_with_url_prefix(self, app, client):
+    @pytest.mark.config(server_name='api.restplus.org')
+    async def test_specs_endpoint_host_with_url_prefix(self, app, client):
         blueprint = Blueprint('api', __name__, url_prefix='/api/1')
         restplus.Api(blueprint)
         app.register_blueprint(blueprint)
 
-        data = client.get_specs('/api/1')
+        data = await client.get_specs('/api/1')
         assert data['host'] == 'api.restplus.org'
         assert data['basePath'] == '/api/1'
 
-    @pytest.mark.options(server_name='restplus.org')
-    def test_specs_endpoint_host_and_subdomain(self, app, client):
+    @pytest.mark.config(server_name='restplus.org')
+    async def test_specs_endpoint_host_and_subdomain(self, app, client):
+        app.url_map.host_matching = True
         blueprint = Blueprint('api', __name__, subdomain='api')
         restplus.Api(blueprint)
         app.register_blueprint(blueprint)
 
-        data = client.get_specs(base_url='http://api.restplus.org')
+        data = await client.get_specs(base_url='http://api.restplus.org')
         assert data['host'] == 'api.restplus.org'
         assert data['basePath'] == '/'
 
-    def test_specs_endpoint_tags_short(self, app, client):
+    async def test_specs_endpoint_tags_short(self, app, client):
         restplus.Api(app, tags=['tag-1', 'tag-2', 'tag-3'])
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'tag-1'},
             {'name': 'tag-2'},
             {'name': 'tag-3'}
         ]
 
-    def test_specs_endpoint_tags_tuple(self, app, client):
+    async def test_specs_endpoint_tags_tuple(self, app, client):
         restplus.Api(app, tags=[
             ('tag-1', 'Tag 1'),
             ('tag-2', 'Tag 2'),
             ('tag-3', 'Tag 3'),
         ])
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
             {'name': 'tag-3', 'description': 'Tag 3'}
         ]
 
-    def test_specs_endpoint_tags_dict(self, app, client):
+    async def test_specs_endpoint_tags_dict(self, app, client):
         restplus.Api(app, tags=[
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
             {'name': 'tag-3', 'description': 'Tag 3'},
         ])
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'tag-1', 'description': 'Tag 1'},
             {'name': 'tag-2', 'description': 'Tag 2'},
@@ -222,27 +219,27 @@ class SwaggerTest(object):
         ]
 
     @pytest.mark.api(tags=['ns', 'tag'])
-    def test_specs_endpoint_tags_namespaces(self, api, client):
+    async def test_specs_endpoint_tags_namespaces(self, api, client):
         api.namespace('ns', 'Description')
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [{'name': 'ns'}, {'name': 'tag'}]
 
-    def test_specs_endpoint_invalid_tags(self, app, client):
+    async def test_specs_endpoint_invalid_tags(self, app, client):
         api = restplus.Api(app, tags=[
             {'description': 'Tag 1'}
         ])
 
-        client.get_specs('', status=500)
+        client.get_specs(status=500)
 
         assert list(api.__schema__.keys()) == ['error']
 
-    def test_specs_endpoint_default_ns_with_resources(self, app, client):
+    async def test_specs_endpoint_default_ns_with_resources(self, app, client):
         restplus.Api(app)
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == []
 
-    def test_specs_endpoint_default_ns_without_resources(self, app, client):
+    async def test_specs_endpoint_default_ns_without_resources(self, app, client):
         api = restplus.Api(app)
 
         @api.route('/test', endpoint='test')
@@ -250,12 +247,12 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'default', 'description': 'Default namespace'}
         ]
 
-    def test_specs_endpoint_default_ns_with_specified_ns(self, app, client):
+    async def test_specs_endpoint_default_ns_with_specified_ns(self, app, client):
         api = restplus.Api(app)
         ns = api.namespace('ns', 'Test namespace')
 
@@ -265,13 +262,13 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'default', 'description': 'Default namespace'},
             {'name': 'ns', 'description': 'Test namespace'}
         ]
 
-    def test_specs_endpoint_specified_ns_without_default_ns(self, app, client):
+    async def test_specs_endpoint_specified_ns_without_default_ns(self, app, client):
         api = restplus.Api(app)
         ns = api.namespace('ns', 'Test namespace')
 
@@ -280,12 +277,12 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [
             {'name': 'ns', 'description': 'Test namespace'}
         ]
 
-    def test_specs_endpoint_namespace_without_description(self, app, client):
+    async def test_specs_endpoint_namespace_without_description(self, app, client):
         api = restplus.Api(app)
         ns = api.namespace('ns')
 
@@ -294,10 +291,10 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         assert data['tags'] == [{'name': 'ns'}]
 
-    def test_specs_authorizations(self, app, client):
+    async def test_specs_authorizations(self, app, client):
         authorizations = {
             'apikey': {
                 'type': 'apiKey',
@@ -307,13 +304,13 @@ class SwaggerTest(object):
         }
         restplus.Api(app, authorizations=authorizations)
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'securityDefinitions' in data
         assert data['securityDefinitions'] == authorizations
 
     @pytest.mark.api(prefix='/api')
-    def test_minimal_documentation(self, api, client):
+    async def test_minimal_documentation(self, app, api, client):
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test')
@@ -321,7 +318,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('/api')
+        data = await client.get_specs('/api')
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -339,16 +336,17 @@ class SwaggerTest(object):
             }
         }
 
-        assert url_for('api.test') == '/api/ns/'
+        async with app.test_request_context():
+            assert url_for('api.test') == '/api/ns/'
 
     @pytest.mark.api(prefix='/api', version='1.0')
-    def test_default_ns_resource_documentation(self, api, client):
+    async def test_default_ns_resource_documentation(self, app, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             def get(self):
                 return {}
 
-        data = client.get_specs('/api')
+        data = await client.get_specs('/api')
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -367,16 +365,17 @@ class SwaggerTest(object):
         assert tag['name'] == 'default'
         assert tag['description'] == 'Default namespace'
 
-        assert url_for('api.test') == '/api/test/'
+        async with app.test_request_context():
+            assert url_for('api.test') == '/api/test/'
 
     @pytest.mark.api(default='site', default_label='Site namespace')
-    def test_default_ns_resource_documentation_with_override(self, api, client):
+    async def test_default_ns_resource_documentation_with_override(self, app, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -395,10 +394,11 @@ class SwaggerTest(object):
         assert tag['name'] == 'site'
         assert tag['description'] == 'Site namespace'
 
-        assert url_for('api.test') == '/test/'
+        async with app.test_request_context():
+            assert url_for('api.test') == '/test/'
 
     @pytest.mark.api(prefix='/api')
-    def test_ns_resource_documentation(self, api, client):
+    async def test_ns_resource_documentation(self, app, api, client):
         ns = api.namespace('ns', 'Test namespace')
 
         @ns.route('/', endpoint='test')
@@ -406,7 +406,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('/api')
+        data = await client.get_specs('/api')
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -426,9 +426,10 @@ class SwaggerTest(object):
         assert tag['name'] == 'ns'
         assert tag['description'] == 'Test namespace'
 
-        assert url_for('api.test') == '/api/ns/'
+        async with app.test_request_context():
+            assert url_for('api.test') == '/api/ns/'
 
-    def test_ns_resource_documentation_lazy(self, app, client):
+    async def test_ns_resource_documentation_lazy(self, app, client):
         api = restplus.Api()
         ns = api.namespace('ns', 'Test namespace')
 
@@ -439,7 +440,7 @@ class SwaggerTest(object):
 
         api.init_app(app)
 
-        data = client.get_specs()
+        data = await client.get_specs()
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -458,36 +459,37 @@ class SwaggerTest(object):
         assert tag['name'] == 'ns'
         assert tag['description'] == 'Test namespace'
 
-        assert url_for('test') == '/ns/'
+        async with app.test_request_context():
+            assert url_for('test') == '/ns/'
 
-    def test_methods_docstring_to_summary(self, api, client):
+    async def test_methods_docstring_to_summary(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
             def post(self):
-                '''POST operation.
+                """POST operation.
 
                 Should be ignored
-                '''
+                """
                 return {}
 
             def put(self):
-                '''PUT operation. Should be ignored'''
+                """PUT operation. Should be ignored"""
                 return {}
 
             def delete(self):
-                '''
+                """
                 DELETE operation.
                 Should be ignored.
-                '''
+                """
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert len(path.keys()) == 4
@@ -499,13 +501,13 @@ class SwaggerTest(object):
             assert operation['operationId'] == '{0}_test_resource'.format(method.lower())
             # assert operation['parameters'] == []
 
-    def test_path_parameter_no_type(self, api, client):
+    async def test_path_parameter_no_type(self, api, client):
         @api.route('/id/<id>/', endpoint='by-id')
         class ByIdResource(restplus.Resource):
             def get(self, id):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/id/{id}/' in data['paths']
 
         path = data['paths']['/id/{id}/']
@@ -517,13 +519,13 @@ class SwaggerTest(object):
         assert parameter['in'] == 'path'
         assert parameter['required'] is True
 
-    def test_path_parameter_with_type(self, api, client):
+    async def test_path_parameter_with_type(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name')
         class ByNameResource(restplus.Resource):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -535,13 +537,13 @@ class SwaggerTest(object):
         assert parameter['in'] == 'path'
         assert parameter['required'] is True
 
-    def test_path_parameter_with_type_with_argument(self, api, client):
+    async def test_path_parameter_with_type_with_argument(self, api, client):
         @api.route('/name/<string(length=2):id>/', endpoint='by-name')
         class ByNameResource(restplus.Resource):
             def get(self, id):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{id}/' in data['paths']
 
         path = data['paths']['/name/{id}/']
@@ -553,7 +555,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'path'
         assert parameter['required'] is True
 
-    def test_path_parameter_with_explicit_details(self, api, client):
+    async def test_path_parameter_with_explicit_details(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'params': {
                 'age': {'description': 'An age'}
@@ -563,7 +565,7 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -576,14 +578,14 @@ class SwaggerTest(object):
         assert parameter['required'] is True
         assert parameter['description'] == 'An age'
 
-    def test_path_parameter_with_decorator_details(self, api, client):
+    async def test_path_parameter_with_decorator_details(self, api, client):
         @api.route('/name/<int:age>/')
         @api.param('age', 'An age')
         class ByNameResource(restplus.Resource):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -596,7 +598,7 @@ class SwaggerTest(object):
         assert parameter['required'] is True
         assert parameter['description'] == 'An age'
 
-    def test_expect_parser(self, api, client):
+    async def test_expect_parser(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')
 
@@ -606,7 +608,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         op = data['paths']['/with-parser/']['get']
@@ -618,7 +620,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'Some param'
 
-    def test_expect_parser_on_class(self, api, client):
+    async def test_expect_parser_on_class(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')
 
@@ -628,7 +630,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         path = data['paths']['/with-parser/']
@@ -640,7 +642,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'Some param'
 
-    def test_method_parser_on_class(self, api, client):
+    async def test_method_parser_on_class(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')
 
@@ -653,7 +655,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         op = data['paths']['/with-parser/']['get']
@@ -668,7 +670,7 @@ class SwaggerTest(object):
         op = data['paths']['/with-parser/']['post']
         assert 'parameters' not in op
 
-    def test_parser_parameters_override(self, api, client):
+    async def test_parser_parameters_override(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')
 
@@ -679,7 +681,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         op = data['paths']['/with-parser/']['get']
@@ -691,7 +693,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'New description'
 
-    def test_parser_parameter_in_form(self, api, client):
+    async def test_parser_parameter_in_form(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param', location='form')
 
@@ -701,7 +703,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         op = data['paths']['/with-parser/']['get']
@@ -715,7 +717,7 @@ class SwaggerTest(object):
 
         assert op['consumes'] == ['application/x-www-form-urlencoded', 'multipart/form-data']
 
-    def test_parser_parameter_in_files(self, api, client):
+    async def test_parser_parameter_in_files(self, api, client):
         parser = api.parser()
         parser.add_argument('in_files', type=FileStorage, location='files')
 
@@ -725,7 +727,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         op = data['paths']['/with-parser/']['get']
@@ -738,7 +740,7 @@ class SwaggerTest(object):
 
         assert op['consumes'] == ['multipart/form-data']
 
-    def test_parser_parameter_in_files_on_class(self, api, client):
+    async def test_parser_parameter_in_files_on_class(self, api, client):
         parser = api.parser()
         parser.add_argument('in_files', type=FileStorage, location='files')
 
@@ -748,7 +750,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/with-parser/' in data['paths']
 
         path = data['paths']['/with-parser/']
@@ -765,7 +767,7 @@ class SwaggerTest(object):
         assert 'consumes' in op
         assert op['consumes'] == ['multipart/form-data']
 
-    def test_explicit_parameters(self, api, client):
+    async def test_explicit_parameters(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name')
         class ByNameResource(restplus.Resource):
             @api.doc(params={
@@ -778,7 +780,7 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -799,14 +801,14 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'A query string'
 
-    def test_explicit_parameters_with_decorator(self, api, client):
+    async def test_explicit_parameters_with_decorator(self, api, client):
         @api.route('/name/')
         class ByNameResource(restplus.Resource):
             @api.param('q', 'A query string', type='string', _in='formData')
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/' in data['paths']
 
         op = data['paths']['/name/']['get']
@@ -818,7 +820,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'formData'
         assert parameter['description'] == 'A query string'
 
-    def test_class_explicit_parameters(self, api, client):
+    async def test_class_explicit_parameters(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'params': {
                 'q': {
@@ -832,7 +834,7 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -852,7 +854,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'A query string'
 
-    def test_explicit_parameters_override(self, api, client):
+    async def test_explicit_parameters_override(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'params': {
                 'q': {
@@ -873,7 +875,7 @@ class SwaggerTest(object):
             def post(self, age):
                 pass
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -909,7 +911,7 @@ class SwaggerTest(object):
         assert parameter['in'] == 'query'
         assert parameter['description'] == 'Overriden description'
 
-    def test_explicit_parameters_override_by_method(self, api, client):
+    async def test_explicit_parameters_override_by_method(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'get': {
                 'params': {
@@ -934,7 +936,7 @@ class SwaggerTest(object):
             def post(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -970,7 +972,7 @@ class SwaggerTest(object):
         assert parameter['required'] is True
         assert parameter['description'] == 'An age'
 
-    def test_parameters_cascading_with_apidoc_false(self, api, client):
+    async def test_parameters_cascading_with_apidoc_false(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'get': {
                 'params': {
@@ -996,7 +998,7 @@ class SwaggerTest(object):
             def post(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -1011,7 +1013,7 @@ class SwaggerTest(object):
 
         assert 'post' not in path
 
-    def test_explicit_parameters_desription_shortcut(self, api, client):
+    async def test_explicit_parameters_desription_shortcut(self, api, client):
         @api.route('/name/<int:age>/', endpoint='by-name', doc={
             'get': {
                 'params': {
@@ -1030,7 +1032,7 @@ class SwaggerTest(object):
             def post(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/name/{age}/' in data['paths']
 
         path = data['paths']['/name/{age}/']
@@ -1068,7 +1070,7 @@ class SwaggerTest(object):
 
         assert 'q' not in by_name
 
-    def test_explicit_parameters_native_types(self, api, client):
+    async def test_explicit_parameters_native_types(self, api, client):
         @api.route('/types/', endpoint='native')
         class NativeTypesResource(restplus.Resource):
             @api.doc(params={
@@ -1108,7 +1110,7 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         op = data['paths']['/types/']['get']
 
@@ -1128,7 +1130,7 @@ class SwaggerTest(object):
         assert parameters['bool-array']['type'] == 'array'
         assert parameters['bool-array']['items']['type'] == 'boolean'
 
-    def test_response_on_method(self, api, client):
+    async def test_response_on_method(self, api, client):
         api.model('ErrorModel', {
             'message': restplus.fields.String,
         })
@@ -1142,7 +1144,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         paths = data['paths']
         assert len(paths.keys()) == 1
 
@@ -1163,7 +1165,7 @@ class SwaggerTest(object):
         assert 'definitions' in data
         assert 'ErrorModel' in data['definitions']
 
-    def test_api_response(self, api, client):
+    async def test_api_response(self, api, client):
         @api.route('/test/')
         class TestResource(restplus.Resource):
 
@@ -1171,7 +1173,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         paths = data['paths']
 
         op = paths['/test/']['get']
@@ -1181,7 +1183,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_api_response_multiple(self, api, client):
+    async def test_api_response_multiple(self, api, client):
         @api.route('/test/')
         class TestResource(restplus.Resource):
 
@@ -1190,7 +1192,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         paths = data['paths']
 
         op = paths['/test/']['get']
@@ -1203,7 +1205,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_api_response_with_model(self, api, client):
+    async def test_api_response_with_model(self, api, client):
         model = api.model('SomeModel', {
             'message': restplus.fields.String,
         })
@@ -1215,7 +1217,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         paths = data['paths']
 
         op = paths['/test/']['get']
@@ -1230,7 +1232,7 @@ class SwaggerTest(object):
 
         assert 'SomeModel' in data['definitions']
 
-    def test_api_response_default(self, api, client):
+    async def test_api_response_default(self, api, client):
         @api.route('/test/')
         class TestResource(restplus.Resource):
 
@@ -1238,7 +1240,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         paths = data['paths']
 
         op = paths['/test/']['get']
@@ -1248,7 +1250,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_api_header(self, api, client):
+    async def test_api_header(self, api, client):
         @api.route('/test/')
         @api.header('X-HEADER', 'A class header')
         class TestResource(restplus.Resource):
@@ -1259,7 +1261,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         headers = data['paths']['/test/']['get']['responses']['200']['headers']
 
         assert 'X-HEADER' in headers
@@ -1282,7 +1284,7 @@ class SwaggerTest(object):
         assert 'X-HEADER-4' in headers
         assert headers['X-HEADER-4'] == {'type': 'boolean'}
 
-    def test_response_header(self, api, client):
+    async def test_response_header(self, api, client):
         @api.route('/test/')
         class TestResource(restplus.Resource):
             @api.response(200, 'Success')
@@ -1290,7 +1292,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         headers = data['paths']['/test/']['get']['responses']['400']['headers']
 
         assert 'X-HEADER' in headers
@@ -1299,7 +1301,7 @@ class SwaggerTest(object):
             'description': 'An header',
         }
 
-    def test_api_and_response_header(self, api, client):
+    async def test_api_and_response_header(self, api, client):
         @api.route('/test/')
         @api.header('X-HEADER', 'A class header')
         class TestResource(restplus.Resource):
@@ -1310,7 +1312,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         headers200 = data['paths']['/test/']['get']['responses']['200']['headers']
         headers400 = data['paths']['/test/']['get']['responses']['400']['headers']
 
@@ -1321,7 +1323,7 @@ class SwaggerTest(object):
         assert 'X-ERROR' in headers400
         assert 'X-ERROR' not in headers200
 
-    def test_expect_header(self, api, client):
+    async def test_expect_header(self, api, client):
         parser = api.parser()
         parser.add_argument('X-Header', location='headers', required=True, help='A required header')
         parser.add_argument('X-Header-2', location='headers', type=int, action='split', help='Another header')
@@ -1335,7 +1337,7 @@ class SwaggerTest(object):
             def get(self):
                 pass
 
-        data = client.get_specs('')
+        data = await client.get_specs()
         parameters = data['paths']['/test/']['get']['parameters']
 
         def get_param(name):
@@ -1364,7 +1366,7 @@ class SwaggerTest(object):
         assert parameter['type'] == 'boolean'
         assert parameter['in'] == 'header'
 
-    def test_description(self, api, client):
+    async def test_description(self, api, client):
         @api.route('/description/', endpoint='description', doc={
             'description': 'Parent description.',
             'delete': {'description': 'A delete operation'},
@@ -1375,48 +1377,48 @@ class SwaggerTest(object):
                 return {}
 
             def post(self):
-                '''
+                """
                 Do something.
 
                 Extra description
-                '''
+                """
                 return {}
 
             def put(self):
-                '''No description (only summary)'''
+                """No description (only summary)"""
 
             def delete(self):
-                '''No description (only summary)'''
+                """No description (only summary)"""
 
         @api.route('/descriptionless/', endpoint='descriptionless')
         class ResourceWithoutDescription(restplus.Resource):
             def get(self):
-                '''No description (only summary)'''
+                """No description (only summary)"""
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         description = lambda m: data['paths']['/description/'][m]['description']  # noqa
 
-        assert description('get') == dedent('''\
+        assert description('get') == dedent("""\
             Parent description.
-            Some details'''
-        )
+            Some details"""
+                                            )
 
-        assert description('post') == dedent('''\
+        assert description('post') == dedent("""\
             Parent description.
-            Extra description'''
-        )
+            Extra description"""
+                                             )
 
-        assert description('delete') == dedent('''\
+        assert description('delete') == dedent("""\
             Parent description.
-            A delete operation'''
-        )
+            A delete operation"""
+                                               )
 
         assert description('put') == 'Parent description.'
         assert 'description' not in data['paths']['/descriptionless/']['get']
 
-    def test_operation_id(self, api, client):
+    async def test_operation_id(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             @api.doc(id='get_objects')
@@ -1426,25 +1428,25 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert path['get']['operationId'] == 'get_objects'
         assert path['post']['operationId'] == 'post_test_resource'
 
-    def test_operation_id_shortcut(self, api, client):
+    async def test_operation_id_shortcut(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             @api.doc('get_objects')
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert path['get']['operationId'] == 'get_objects'
 
-    def test_custom_default_operation_id(self, app, client):
+    async def test_custom_default_operation_id(self, app, client):
         def default_id(resource, method):
             return '{0}{1}'.format(method, resource)
 
@@ -1459,14 +1461,14 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert path['get']['operationId'] == 'get_objects'
         assert path['post']['operationId'] == 'postTestResource'
 
     @pytest.mark.api(default_id=lambda r, m: '{0}{1}'.format(m, r))
-    def test_custom_default_operation_id_blueprint(self, api, client):
+    async def test_custom_default_operation_id_blueprint(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             @api.doc(id='get_objects')
@@ -1476,20 +1478,20 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert path['get']['operationId'] == 'get_objects'
         assert path['post']['operationId'] == 'postTestResource'
 
-    def test_model_primitive_types(self, api, client):
+    async def test_model_primitive_types(self, api, client):
         @api.route('/model-int/')
         class ModelInt(restplus.Resource):
             @api.doc(model=int)
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' not in data
         assert data['paths']['/model-int/']['get']['responses'] == {
@@ -1501,7 +1503,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_model_as_flat_dict(self, api, client):
+    async def test_model_as_flat_dict(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1518,7 +1520,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1527,7 +1529,7 @@ class SwaggerTest(object):
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
         assert path['post']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
 
-    def test_model_as_nested_dict(self, api, client):
+    async def test_model_as_nested_dict(self, api, client):
         address_fields = api.model('Address', {
             'road': restplus.fields.String,
         })
@@ -1546,7 +1548,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1573,7 +1575,7 @@ class SwaggerTest(object):
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
         assert path['post']['responses']['200']['schema']['$ref'] == '#/definitions/Person'
 
-    def test_model_as_nested_dict_with_details(self, api, client):
+    async def test_model_as_nested_dict_with_details(self, api, client):
         address_fields = api.model('Address', {
             'road': restplus.fields.String,
         })
@@ -1592,7 +1594,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1617,7 +1619,7 @@ class SwaggerTest(object):
             'type': 'object'
         }
 
-    def test_model_as_flat_dict_with_marchal_decorator(self, api, client):
+    async def test_model_as_flat_dict_with_marchal_decorator(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1630,7 +1632,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1645,7 +1647,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_marchal_decorator_with_code(self, api, client):
+    async def test_marchal_decorator_with_code(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1658,7 +1660,7 @@ class SwaggerTest(object):
             def delete(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1673,7 +1675,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_marchal_decorator_with_description(self, api, client):
+    async def test_marchal_decorator_with_description(self, api, client):
         person = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1686,7 +1688,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1701,7 +1703,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_model_as_flat_dict_with_marchal_decorator_list(self, api, client):
+    async def test_model_as_flat_dict_with_marchal_decorator_list(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1714,7 +1716,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1740,7 +1742,7 @@ class SwaggerTest(object):
             'items': {'$ref': '#/definitions/Person'},
         }
 
-    def test_model_as_flat_dict_with_marchal_decorator_list_alt(self, api, client):
+    async def test_model_as_flat_dict_with_marchal_decorator_list_alt(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1753,7 +1755,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1764,7 +1766,7 @@ class SwaggerTest(object):
             'items': {'$ref': '#/definitions/Person'},
         }
 
-    def test_model_as_flat_dict_with_marchal_decorator_list_kwargs(self, api, client):
+    async def test_model_as_flat_dict_with_marchal_decorator_list_kwargs(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1777,7 +1779,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1793,7 +1795,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_model_as_dict_with_list(self, api, client):
+    async def test_model_as_dict_with_list(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1806,7 +1808,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1831,7 +1833,7 @@ class SwaggerTest(object):
         path = data['paths']['/model-with-list/']
         assert path['get']['responses']['200']['schema'] == {'$ref': '#/definitions/Person'}
 
-    def test_model_as_nested_dict_with_list(self, api, client):
+    async def test_model_as_nested_dict_with_list(self, api, client):
         address = api.model('Address', {
             'road': restplus.fields.String,
         })
@@ -1849,13 +1851,13 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
         assert 'Address' in data['definitions']
 
-    def test_model_list_of_primitive_types(self, api, client):
+    async def test_model_list_of_primitive_types(self, api, client):
         @api.route('/model-list/')
         class ModelAsDict(restplus.Resource):
             @api.doc(model=[int])
@@ -1866,7 +1868,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' not in data
 
@@ -1880,7 +1882,7 @@ class SwaggerTest(object):
             'items': {'type': 'string'},
         }
 
-    def test_model_list_as_flat_dict(self, api, client):
+    async def test_model_list_as_flat_dict(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1897,7 +1899,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1909,7 +1911,7 @@ class SwaggerTest(object):
                 'items': {'$ref': '#/definitions/Person'},
             }
 
-    def test_model_doc_on_class(self, api, client):
+    async def test_model_doc_on_class(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1925,7 +1927,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert 'definitions' in data
         assert 'Person' in data['definitions']
 
@@ -1933,7 +1935,7 @@ class SwaggerTest(object):
         for method in 'get', 'post':
             assert path[method]['responses']['200']['schema'] == {'$ref': '#/definitions/Person'}
 
-    def test_model_doc_for_method_on_class(self, api, client):
+    async def test_model_doc_for_method_on_class(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -1949,7 +1951,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert 'definitions' in data
         assert 'Person' in data['definitions']
 
@@ -1957,7 +1959,7 @@ class SwaggerTest(object):
         assert path['get']['responses']['200']['schema'] == {'$ref': '#/definitions/Person'}
         assert 'schema' not in path['post']['responses']['200']
 
-    def test_model_with_discriminator(self, api, client):
+    async def test_model_with_discriminator(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String(discriminator=True),
             'age': restplus.fields.Integer,
@@ -1969,7 +1971,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -1983,7 +1985,7 @@ class SwaggerTest(object):
             'type': 'object'
         }
 
-    def test_model_with_discriminator_override_require(self, api, client):
+    async def test_model_with_discriminator_override_require(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String(discriminator=True, required=False),
             'age': restplus.fields.Integer,
@@ -1995,7 +1997,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2009,7 +2011,7 @@ class SwaggerTest(object):
             'type': 'object'
         }
 
-    def test_model_not_found(self, api, client):
+    async def test_model_not_found(self, api, client):
         @api.route('/model-not-found/')
         class ModelAsDict(restplus.Resource):
             @api.doc(model='NotFound')
@@ -2018,7 +2020,7 @@ class SwaggerTest(object):
 
         client.get_specs(status=500)
 
-    def test_clone(self, api, client):
+    async def test_clone(self, api, client):
         parent = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2039,7 +2041,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' not in data['definitions']
@@ -2049,7 +2051,7 @@ class SwaggerTest(object):
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Child'
         assert path['post']['responses']['200']['schema']['$ref'] == '#/definitions/Child'
 
-    def test_inherit(self, api, client):
+    async def test_inherit(self, api, client):
         parent = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2073,7 +2075,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2100,14 +2102,14 @@ class SwaggerTest(object):
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Child'
         assert path['post']['responses']['200']['schema']['$ref'] == '#/definitions/Child'
 
-        data = client.get_json('/inherit/')
+        data = await client.get_json('/inherit/')
         assert data == {
             'name': 'John',
             'age': 42,
             'extra': 'test',
         }
 
-    def test_inherit_inline(self, api, client):
+    async def test_inherit_inline(self, api, client):
         parent = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2143,13 +2145,13 @@ class SwaggerTest(object):
                     }]
                 }
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
         assert 'Child' in data['definitions']
 
-        data = client.get_json('/inherit/')
+        data = await client.get_json('/inherit/')
         assert data == {
             'child': {
                 'name': 'John',
@@ -2167,7 +2169,7 @@ class SwaggerTest(object):
             }]
         }
 
-    def test_polymorph_inherit(self, api, client):
+    async def test_polymorph_inherit(self, api, client):
         class Child1:
             pass
 
@@ -2202,7 +2204,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2213,7 +2215,7 @@ class SwaggerTest(object):
         path = data['paths']['/polymorph/']
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Output'
 
-    def test_polymorph_inherit_list(self, api, client):
+    async def test_polymorph_inherit_list(self, api, client):
         class Child1:
             name = 'Child1'
             extra1 = 'extra1'
@@ -2251,7 +2253,7 @@ class SwaggerTest(object):
                     'children': [Child1(), Child2()]
                 }
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2262,7 +2264,7 @@ class SwaggerTest(object):
         path = data['paths']['/polymorph/']
         assert path['get']['responses']['200']['schema']['$ref'] == '#/definitions/Output'
 
-        data = client.get_json('/polymorph/')
+        data = await client.get_json('/polymorph/')
         assert data == {
             'children': [{
                 'name': 'Child1',
@@ -2273,7 +2275,7 @@ class SwaggerTest(object):
             }]
         }
 
-    def test_expect_model(self, api, client):
+    async def test_expect_model(self, api, client):
         person = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2286,7 +2288,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2320,7 +2322,7 @@ class SwaggerTest(object):
         }
         assert 'description' not in parameter
 
-    def test_body_model_shortcut(self, api, client):
+    async def test_body_model_shortcut(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2334,7 +2336,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2370,7 +2372,7 @@ class SwaggerTest(object):
         }
         assert 'description' not in parameter
 
-    def test_expect_model_list(self, api, client):
+    async def test_expect_model_list(self, api, client):
         model = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2383,7 +2385,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2416,7 +2418,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_both_model_and_parser_from_expect(self, api, client):
+    async def test_both_model_and_parser_from_expect(self, api, client):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')
 
@@ -2432,7 +2434,7 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2475,14 +2477,14 @@ class SwaggerTest(object):
             }
         }
 
-    def test_expect_primitive_list(self, api, client):
+    async def test_expect_primitive_list(self, api, client):
         @api.route('/model-list/')
         class ModelAsDict(restplus.Resource):
             @api.expect([restplus.fields.String])
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         op = data['paths']['/model-list/']['post']
         parameter = op['parameters'][0]
@@ -2496,7 +2498,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_body_model_list(self, api, client):
+    async def test_body_model_list(self, api, client):
         fields = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2509,7 +2511,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2542,7 +2544,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_expect_model_with_description(self, api, client):
+    async def test_expect_model_with_description(self, api, client):
         person = api.model('Person', {
             'name': restplus.fields.String,
             'age': restplus.fields.Integer,
@@ -2555,7 +2557,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert 'definitions' in data
         assert 'Person' in data['definitions']
@@ -2590,7 +2592,7 @@ class SwaggerTest(object):
             }
         }
 
-    def test_authorizations(self, app, client):
+    async def test_authorizations(self, app, client):
         restplus.Api(app, authorizations={
             'apikey': {
                 'type': 'apiKey',
@@ -2607,7 +2609,7 @@ class SwaggerTest(object):
         #     def post(self):
         #         return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert 'securityDefinitions' in data
         assert 'security' not in data
 
@@ -2615,7 +2617,7 @@ class SwaggerTest(object):
         # assert 'security' not in path['get']
         # assert path['post']['security'] == {'apikey': []}
 
-    def test_single_root_security_string(self, app, client):
+    async def test_single_root_security_string(self, app, client):
         api = restplus.Api(app, security='apikey', authorizations={
             'apikey': {
                 'type': 'apiKey',
@@ -2629,7 +2631,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == {
             'apikey': {
                 'type': 'apiKey',
@@ -2642,7 +2644,7 @@ class SwaggerTest(object):
         op = data['paths']['/authorizations/']['post']
         assert 'security' not in op
 
-    def test_single_root_security_object(self, app, client):
+    async def test_single_root_security_object(self, app, client):
         security_definitions = {
             'oauth2': {
                 'type': 'oauth2',
@@ -2665,19 +2667,19 @@ class SwaggerTest(object):
         }
 
         api = restplus.Api(app,
-            security={
-                'oauth2': 'read',
-                'implicit': ['read', 'write']
-            },
-            authorizations=security_definitions
-        )
+                           security={
+                               'oauth2': 'read',
+                               'implicit': ['read', 'write']
+                           },
+                           authorizations=security_definitions
+                           )
 
         @api.route('/authorizations/')
         class ModelAsDict(restplus.Resource):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == security_definitions
         assert data['security'] == [{
             'oauth2': ['read'],
@@ -2687,7 +2689,7 @@ class SwaggerTest(object):
         op = data['paths']['/authorizations/']['post']
         assert 'security' not in op
 
-    def test_root_security_as_list(self, app, client):
+    async def test_root_security_as_list(self, app, client):
         security_definitions = {
             'apikey': {
                 'type': 'apiKey',
@@ -2711,14 +2713,14 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == security_definitions
         assert data['security'] == [{'apikey': []}, {'oauth2': ['read']}]
 
         op = data['paths']['/authorizations/']['post']
         assert 'security' not in op
 
-    def test_method_security(self, app, client):
+    async def test_method_security(self, app, client):
         api = restplus.Api(app, authorizations={
             'apikey': {
                 'type': 'apiKey',
@@ -2737,7 +2739,7 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == {
             'apikey': {
                 'type': 'apiKey',
@@ -2751,7 +2753,7 @@ class SwaggerTest(object):
         for method in 'get', 'post':
             assert path[method]['security'] == [{'apikey': []}]
 
-    def test_security_override(self, app, client):
+    async def test_security_override(self, app, client):
         security_definitions = {
             'apikey': {
                 'type': 'apiKey',
@@ -2776,13 +2778,13 @@ class SwaggerTest(object):
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == security_definitions
 
         op = data['paths']['/authorizations/']['get']
         assert op['security'] == [{'oauth2': ['read', 'write']}]
 
-    def test_security_nullify(self, app, client):
+    async def test_security_nullify(self, app, client):
         security_definitions = {
             'apikey': {
                 'type': 'apiKey',
@@ -2811,91 +2813,91 @@ class SwaggerTest(object):
             def post(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert data['securityDefinitions'] == security_definitions
 
         path = data['paths']['/authorizations/']
         for method in 'get', 'post':
             assert path[method]['security'] == []
 
-    def test_hidden_resource(self, api, client):
+    async def test_hidden_resource(self, api, client):
         @api.route('/test/', endpoint='test', doc=False)
         class TestResource(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
         @api.hide
         @api.route('/test2/', endpoint='test2')
         class TestResource2(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
         @api.doc(False)
         @api.route('/test3/', endpoint='test3')
         class TestResource3(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         for path in '/test/', '/test2/', '/test3/':
             assert path not in data['paths']
 
-            resp = client.get(path)
+            resp = await client.get(path)
             assert resp.status_code == 200
 
-    def test_hidden_resource_from_namespace(self, api, client):
+    async def test_hidden_resource_from_namespace(self, api, client):
         ns = api.namespace('ns')
 
         @ns.route('/test/', endpoint='test', doc=False)
         class TestResource(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         assert '/ns/test/' not in data['paths']
 
-        resp = client.get('/ns/test/')
+        resp = await client.get('/ns/test/')
         assert resp.status_code == 200
 
-    def test_hidden_methods(self, api, client):
+    async def test_hidden_methods(self, api, client):
         @api.route('/test/', endpoint='test')
         @api.doc(delete=False)
         class TestResource(restplus.Resource):
             def get(self):
-                '''
+                """
                 GET operation
-                '''
+                """
                 return {}
 
             @api.doc(False)
             def post(self):
-                '''POST operation.
+                """POST operation.
 
                 Should be ignored
-                '''
+                """
                 return {}
 
             @api.hide
             def put(self):
-                '''PUT operation. Should be ignored'''
+                """PUT operation. Should be ignored"""
                 return {}
 
             def delete(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
         path = data['paths']['/test/']
 
         assert 'get' in path
@@ -2903,10 +2905,10 @@ class SwaggerTest(object):
         assert 'put' not in path
 
         for method in 'GET', 'POST', 'PUT':
-            resp = client.open('/test/', method=method)
+            resp = await client.open('/test/', method=method)
             assert resp.status_code == 200
 
-    def test_produces_method(self, api, client):
+    async def test_produces_method(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             def get(self):
@@ -2916,7 +2918,7 @@ class SwaggerTest(object):
             def post(self):
                 pass
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         get_operation = data['paths']['/test/']['get']
         assert 'produces' not in get_operation
@@ -2925,7 +2927,7 @@ class SwaggerTest(object):
         assert 'produces' in post_operation
         assert post_operation['produces'] == ['application/octet-stream']
 
-    def test_deprecated_resource(self, api, client):
+    async def test_deprecated_resource(self, api, client):
         @api.deprecated
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
@@ -2935,13 +2937,13 @@ class SwaggerTest(object):
             def post(self):
                 pass
 
-        data = client.get_specs()
+        data = await client.get_specs()
         resource = data['paths']['/test/']
         for operation in resource.values():
             assert 'deprecated' in operation
             assert operation['deprecated'] is True
 
-    def test_deprecated_method(self, api, client):
+    async def test_deprecated_method(self, api, client):
         @api.route('/test/', endpoint='test')
         class TestResource(restplus.Resource):
             def get(self):
@@ -2951,7 +2953,7 @@ class SwaggerTest(object):
             def post(self):
                 pass
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         get_operation = data['paths']['/test/']['get']
         assert 'deprecated' not in get_operation
@@ -2960,14 +2962,14 @@ class SwaggerTest(object):
         assert 'deprecated' in post_operation
         assert post_operation['deprecated'] is True
 
-    def test_vendor_as_kwargs(self, api, client):
+    async def test_vendor_as_kwargs(self, api, client):
         @api.route('/vendor_fields', endpoint='vendor_fields')
         class TestResource(restplus.Resource):
             @api.vendor(integration={'integration1': '1'})
             def get(self):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert '/vendor_fields' in data['paths']
 
@@ -2977,7 +2979,7 @@ class SwaggerTest(object):
 
         assert path['x-integration'] == {'integration1': '1'}
 
-    def test_vendor_as_dict(self, api, client):
+    async def test_vendor_as_dict(self, api, client):
         @api.route('/vendor_fields', endpoint='vendor_fields')
         class TestResource(restplus.Resource):
             @api.vendor({
@@ -2991,7 +2993,7 @@ class SwaggerTest(object):
             def get(self, age):
                 return {}
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         assert '/vendor_fields' in data['paths']
 
@@ -3005,7 +3007,7 @@ class SwaggerTest(object):
         assert 'x-third-integration' in path
         assert path['x-third-integration'] is True
 
-    def test_method_restrictions(self, api, client):
+    async def test_method_restrictions(self, api, client):
         @api.route('/foo/bar', endpoint='foo')
         @api.route('/bar', methods=['GET'], endpoint='bar')
         class TestResource(restplus.Resource):
@@ -3015,7 +3017,7 @@ class SwaggerTest(object):
             def post(self):
                 pass
 
-        data = client.get_specs()
+        data = await client.get_specs()
 
         path = data['paths']['/foo/bar']
         assert 'get' in path
@@ -3026,7 +3028,7 @@ class SwaggerTest(object):
         assert 'post' not in path
 
 
-class SwaggerDeprecatedTest(object):
+class TestSwaggerDeprecated:
     def test_doc_parser_parameters(self, api):
         parser = api.parser()
         parser.add_argument('param', type=int, help='Some param')

@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+import quart
 
-import flask
-
-from werkzeug.exceptions import HTTPException
-
-from ._http import HTTPStatus
+from http import HTTPStatus
+from quart.exceptions import HTTPException
 
 __all__ = (
     'abort',
@@ -16,7 +13,7 @@ __all__ = (
 
 
 def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
-    '''
+    """
     Properly abort the current request.
 
     Raise a `HTTPException` for the given status `code`.
@@ -26,9 +23,9 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
     :param str message: An optional details message
     :param kwargs: Any additional data to pass to the error payload
     :raise HTTPException:
-    '''
+    """
     try:
-        flask.abort(code)
+        quart.abort(code)
     except HTTPException as e:
         if message:
             kwargs['message'] = str(message)
@@ -38,7 +35,7 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
 
 
 class RestError(Exception):
-    '''Base class for all Flask-Restplus Errors'''
+    """Base class for all Quart-Restplus Errors"""
     def __init__(self, msg):
         self.msg = msg
 
@@ -47,10 +44,10 @@ class RestError(Exception):
 
 
 class ValidationError(RestError):
-    '''An helper class for validation errors.'''
+    """An helper class for validation errors."""
     pass
 
 
 class SpecsError(RestError):
-    '''An helper class for incoherent specifications.'''
+    """An helper class for incoherent specifications."""
     pass

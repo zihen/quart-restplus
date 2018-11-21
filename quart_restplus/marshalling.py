@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+import asyncio
 
 from collections import OrderedDict
 from functools import wraps
-from six import iteritems
 
-from flask import request, current_app, has_app_context
+from quart import request, current_app, has_app_context
 
 from .mask import Mask, apply as apply_mask
 from .utils import unpack
@@ -32,7 +31,7 @@ def marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fal
     :param bool ordered: Wether or not to preserve order
 
 
-    >>> from flask_restplus import fields, marshal
+    >>> from quart_restplus import fields, marshal
     >>> data = { 'a': 100, 'b': 'foo', 'c': None }
     >>> mfields = { 'a': fields.Raw, 'c': fields.Raw, 'd': fields.Raw }
 
@@ -89,7 +88,7 @@ def marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fal
                     while True:
                         value = field.output(dkey, data, ordered=ordered)
                         if value is None or \
-                                value == field.container.format(field.default):
+                            value == field.container.format(field.default):
                             break
                         key = field.key
                         _append(key, value)
@@ -127,7 +126,7 @@ def _marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fa
     :param bool ordered: Wether or not to preserve order
 
 
-    >>> from flask_restplus import fields, marshal
+    >>> from quart_restplus import fields, marshal
     >>> data = { 'a': 100, 'b': 'foo', 'c': None }
     >>> mfields = { 'a': fields.Raw, 'c': fields.Raw, 'd': fields.Raw }
 
@@ -177,7 +176,7 @@ def _marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fa
         (k, marshal(data, v, skip_none=skip_none, ordered=ordered))
         if isinstance(v, dict)
         else __format_field(k, v)
-        for k, v in iteritems(fields)
+        for k, v in fields.items()
     )
 
     if skip_none:
@@ -195,7 +194,7 @@ def _marshal(data, fields, envelope=None, skip_none=False, mask=None, ordered=Fa
 class marshal_with(object):
     """A decorator that apply marshalling to the return values of your methods.
 
-    >>> from flask_restplus import fields, marshal_with
+    >>> from quart_restplus import fields, marshal_with
     >>> mfields = { 'a': fields.Raw }
     >>> @marshal_with(mfields)
     ... def get():
@@ -222,8 +221,9 @@ class marshal_with(object):
     >>> get()
     OrderedDict([('a', 100)])
 
-    see :meth:`flask_restplus.marshal`
+    see :meth:`quart_restplus.marshal`
     """
+
     def __init__(self, fields, envelope=None, skip_none=False, mask=None, ordered=False):
         """
         :param fields: a dict of whose keys will make up the final
@@ -239,8 +239,10 @@ class marshal_with(object):
 
     def __call__(self, f):
         @wraps(f)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             resp = f(*args, **kwargs)
+            while asyncio.iscoroutine(resp):
+                resp = await resp
             mask = self.mask
             if has_app_context():
                 mask_header = current_app.config['RESTPLUS_MASK_HEADER']
@@ -254,6 +256,7 @@ class marshal_with(object):
                 )
             else:
                 return marshal(resp, self.fields, self.envelope, self.skip_none, mask, self.ordered)
+
         return wrapper
 
 
@@ -261,7 +264,7 @@ class marshal_with_field(object):
     """
     A decorator that formats the return values of your methods with a single field.
 
-    >>> from flask_restplus import marshal_with_field, fields
+    >>> from quart_restplus import marshal_with_field, fields
     >>> @marshal_with_field(fields.List(fields.Integer))
     ... def get():
     ...     return ['1', 2, 3.0]
@@ -269,8 +272,9 @@ class marshal_with_field(object):
     >>> get()
     [1, 2, 3]
 
-    see :meth:`flask_restplus.marshal_with`
+    see :meth:`quart_restplus.marshal_with`
     """
+
     def __init__(self, field):
         """
         :param field: a single field with which to marshal the output.

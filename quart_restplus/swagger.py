@@ -1,31 +1,26 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
-
 import itertools
 import re
 
+from http import HTTPStatus
 from inspect import isclass, getdoc
 from collections import OrderedDict, Hashable
-from six import string_types, itervalues, iteritems, iterkeys
 
-from flask import current_app
-from werkzeug.routing import parse_rule
+from quart import current_app
+from quart.routing import _parse_rule, VariablePart
 
 from . import fields
 from .model import Model, ModelBase
 from .reqparse import RequestParser
 from .utils import merge, not_none, not_none_sorted
-from ._http import HTTPStatus
 
-
-#: Maps Flask/Werkzeug rooting types to Swagger ones
+#: Maps Quart/Werkzeug rooting types to Swagger ones
 PATH_TYPES = {
     'int': 'integer',
     'float': 'number',
     'string': 'string',
     'default': 'string',
 }
-
 
 #: Maps Python primitives types to Swagger ones
 PY_TYPES = {
@@ -45,44 +40,43 @@ RE_RAISES = re.compile(r'^:raises\s+(?P<name>[\w\d_]+)\s*:\s*(?P<description>.*)
 
 
 def ref(model):
-    '''Return a reference to model in definitions'''
+    """Return a reference to model in definitions"""
     name = model.name if isinstance(model, ModelBase) else model
     return {'$ref': '#/definitions/{0}'.format(name)}
 
 
 def _v(value):
-    '''Dereference values (callable)'''
+    """Dereference values (callable)"""
     return value() if callable(value) else value
 
 
 def extract_path(path):
-    '''
-    Transform a Flask/Werkzeug URL pattern in a Swagger one.
-    '''
+    """
+    Transform a Quart/Werkzeug URL pattern in a Swagger one.
+    """
     return RE_URL.sub(r'{\1}', path)
 
 
 def extract_path_params(path):
-    '''
-    Extract Flask-style parameters from an URL pattern as Swagger ones.
-    '''
+    """
+    Extract Quart-style parameters from an URL pattern as Swagger ones.
+    """
     params = OrderedDict()
-    for converter, arguments, variable in parse_rule(path):
-        if not converter:
-            continue
-        param = {
-            'name': variable,
-            'in': 'path',
-            'required': True
-        }
-
-        if converter in PATH_TYPES:
-            param['type'] = PATH_TYPES[converter]
-        elif converter in current_app.url_map.converters:
-            param['type'] = 'string'
-        else:
-            raise ValueError('Unsupported type converter: %s' % converter)
-        params[variable] = param
+    converters = current_app.url_map.converters
+    for part in _parse_rule(path):
+        if isinstance(part, VariablePart):
+            param = {
+                'name': part.name,
+                'in': 'path',
+                'required': True
+            }
+            if part.converter in PATH_TYPES:
+                param['type'] = PATH_TYPES[part.converter]
+            elif part.converter in converters:
+                param['type'] = 'string'
+            else:
+                raise ValueError('Unsupported type converter: %s' % part.converter)
+            params[part.name] = param
     return params
 
 
@@ -93,7 +87,7 @@ def _param_to_header(param):
 
 
 def _clean_header(header):
-    if isinstance(header, string_types):
+    if isinstance(header, str):
         header = {'description': header}
     typedef = header.get('type', 'string')
     if isinstance(typedef, Hashable) and typedef in PY_TYPES:
@@ -129,20 +123,21 @@ def parse_docstring(obj):
 
 
 class Swagger(object):
-    '''
+    """
     A Swagger documentation wrapper for an API instance.
-    '''
+    """
+
     def __init__(self, api):
         self.api = api
         self._registered_models = {}
 
     def as_dict(self):
-        '''
+        """
         Output the specification as a serializable ``dict``.
 
         :returns: the full Swagger specification in a serializable format
         :rtype: dict
-        '''
+        """
         basepath = self.api.base_path
         if len(basepath) > 1 and basepath.endswith('/'):
             basepath = basepath[:-1]
@@ -188,7 +183,7 @@ class Swagger(object):
             'basePath': basepath,
             'paths': not_none_sorted(paths),
             'info': infos,
-            'produces': list(iterkeys(self.api.representations)),
+            'produces': list(self.api.representations.keys()),
             'consumes': ['application/json'],
             'securityDefinitions': self.api.authorizations or None,
             'security': self.security_requirements(self.api.security) or None,
@@ -209,7 +204,7 @@ class Swagger(object):
         tags = []
         by_name = {}
         for tag in api.tags:
-            if isinstance(tag, string_types):
+            if isinstance(tag, str):
                 tag = {'name': tag}
             elif isinstance(tag, (list, tuple)):
                 tag = {'name': tag[0], 'description': tag[1]}
@@ -224,9 +219,9 @@ class Swagger(object):
                 continue
             if ns.name not in by_name:
                 tags.append({
-                    'name': ns.name,
-                    'description': ns.description
-                } if ns.description else {'name': ns.name})
+                                'name': ns.name,
+                                'description': ns.description
+                            } if ns.description else {'name': ns.name})
             elif ns.description:
                 by_name[ns.name]['description'] = ns.description
         return tags
@@ -254,7 +249,7 @@ class Swagger(object):
                 method_doc['docstring'] = parse_docstring(method_impl)
                 method_params = self.expected_params(method_doc)
                 method_params = merge(method_params, method_doc.get('params', {}))
-                inherited_params = OrderedDict((k, v) for k, v in iteritems(params) if k in method_params)
+                inherited_params = OrderedDict((k, v) for k, v in params.items() if k in method_params)
                 method_doc['params'] = merge(inherited_params, method_params)
                 for name, param in method_doc['params'].items():
                     key = (name, param.get('in', 'query'))
@@ -319,7 +314,7 @@ class Swagger(object):
 
     def register_errors(self):
         responses = {}
-        for exception, handler in iteritems(self.api.error_handlers):
+        for exception, handler in self.api.error_handlers.items():
             doc = parse_docstring(handler)
             response = {
                 'description': doc['summary']
@@ -374,18 +369,18 @@ class Swagger(object):
         return not_none(operation)
 
     def vendor_fields(self, doc, method):
-        '''
+        """
         Extract custom 3rd party Vendor fields prefixed with ``x-``
 
         See: http://swagger.io/specification/#specification-extensions-128
-        '''
+        """
         return dict(
             (k if k.startswith('x-') else 'x-{0}'.format(k), v)
-            for k, v in iteritems(doc[method].get('vendor', {}))
+            for k, v in doc[method].get('vendor', {}).items()
         )
 
     def description_for(self, doc, method):
-        '''Extract the description metadata and fallback on the whole docstring'''
+        """Extract the description metadata and fallback on the whole docstring"""
         parts = []
         if 'description' in doc:
             parts.append(doc['description'])
@@ -397,12 +392,12 @@ class Swagger(object):
         return '\n'.join(parts).strip()
 
     def operation_id_for(self, doc, method):
-        '''Extract the operation id'''
+        """Extract the operation id"""
         return doc[method]['id'] if 'id' in doc[method] else self.api.default_id(doc['name'], method)
 
     def parameters_for(self, doc):
         params = []
-        for name, param in iteritems(doc['params']):
+        for name, param in doc['params'].items():
             param['name'] = name
             if 'type' not in param and 'schema' not in param:
                 param['type'] = 'string'
@@ -431,7 +426,7 @@ class Swagger(object):
                 'format': 'mask',
                 'description': 'An optional fields mask',
             }
-            if isinstance(mask, string_types):
+            if isinstance(mask, str):
                 param['default'] = mask
             params.append(param)
 
@@ -443,8 +438,8 @@ class Swagger(object):
 
         for d in doc, doc[method]:
             if 'responses' in d:
-                for code, response in iteritems(d['responses']):
-                    if isinstance(response, string_types):
+                for code, response in d['responses'].items():
+                    if isinstance(response, str):
                         description = response
                         model = None
                         kwargs = {}
@@ -464,14 +459,14 @@ class Swagger(object):
                         responses[code]['schema'] = self.serialize_schema(model)
                     self.process_headers(responses[code], doc, method, kwargs.get('headers'))
             if 'model' in d:
-                code = str(d.get('default_code', HTTPStatus.OK))
+                code = str(d.get('default_code', HTTPStatus.OK.value))
                 if code not in responses:
                     responses[code] = self.process_headers(DEFAULT_RESPONSE.copy(), doc, method)
                 responses[code]['schema'] = self.serialize_schema(d['model'])
 
             if 'docstring' in d:
-                for name, description in iteritems(d['docstring']['raises']):
-                    for exception, handler in iteritems(self.api.error_handlers):
+                for name, description in d['docstring']['raises'].items():
+                    for exception, handler in self.api.error_handlers.items():
                         error_responses = getattr(handler, '__apidoc__', {}).get('responses', {})
                         code = list(error_responses.keys())[0] if error_responses else None
                         if code and exception.__name__ == name:
@@ -488,9 +483,9 @@ class Swagger(object):
             response['headers'] = dict(
                 (k, _clean_header(v)) for k, v
                 in itertools.chain(
-                    iteritems(doc.get('headers', {})),
-                    iteritems(method_doc.get('headers', {})),
-                    iteritems(headers or {})
+                    doc.get('headers', {}).items(),
+                    method_doc.get('headers', {}).items(),
+                    (headers or {}).items()
                 )
             )
         return response
@@ -498,7 +493,7 @@ class Swagger(object):
     def serialize_definitions(self):
         return dict(
             (name, model.__schema__)
-            for name, model in iteritems(self._registered_models)
+            for name, model in self._registered_models.items()
         )
 
     def serialize_schema(self, model):
@@ -513,7 +508,7 @@ class Swagger(object):
             self.register_model(model)
             return ref(model)
 
-        elif isinstance(model, string_types):
+        elif isinstance(model, str):
             self.register_model(model)
             return ref(model)
 
@@ -538,13 +533,13 @@ class Swagger(object):
             for parent in specs.__parents__:
                 self.register_model(parent)
         if isinstance(specs, Model):
-            for field in itervalues(specs):
+            for field in specs.values():
                 self.register_field(field)
         return ref(model)
 
     def register_field(self, field):
         if isinstance(field, fields.Polymorph):
-            for model in itervalues(field.mapping):
+            for model in field.mapping.values():
                 self.register_model(model)
         elif isinstance(field, fields.Nested):
             self.register_model(field.nested)
@@ -573,12 +568,12 @@ class Swagger(object):
             return []
 
     def security_requirement(self, value):
-        if isinstance(value, (string_types)):
+        if isinstance(value, (str)):
             return {value: []}
         elif isinstance(value, dict):
             return dict(
                 (k, v if isinstance(v, (list, tuple)) else [v])
-                for k, v in iteritems(value)
+                for k, v in value.items()
             )
         else:
             return None

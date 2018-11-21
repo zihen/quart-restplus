@@ -16,21 +16,21 @@ PYPI_RST_FILTERS = (
     (r':(?:class|func|meth|mod|attr|obj|exc|data|const):`~(?:\w+\.)*(\w+)`', r'``\1``'),
     (r':(?:class|func|meth|mod|attr|obj|exc|data|const):`([^`]+)`', r'``\1``'),
     # replace doc references
-    (r':doc:`(.+) <(.*)>`', r'`\1 <http://flask-restplus.readthedocs.org/en/stable\2.html>`_'),
+    (r':doc:`(.+) <(.*)>`', r'`\1 <http://quart-restplus.readthedocs.org/en/stable\2.html>`_'),
     # replace issues references
-    (r':issue:`(.+?)`', r'`#\1 <https://github.com/noirbizarre/flask-restplus/issues/\1>`_'),
+    (r':issue:`(.+?)`', r'`#\1 <https://github.com/noirbizarre/quart-restplus/issues/\1>`_'),
     # Drop unrecognized currentmodule
     (r'\.\. currentmodule:: .*', ''),
 )
 
 
 def rst(filename):
-    '''
+    """
     Load rst file and sanitize it for PyPI.
     Remove unsupported github tags:
      - code-block directive
      - all badges
-    '''
+    """
     content = io.open(filename).read()
     for regex, replacement in PYPI_RST_FILTERS:
         content = re.sub(regex, replacement, content)
@@ -39,7 +39,7 @@ def rst(filename):
 
 
 def pip(filename):
-    '''Parse pip reqs file and transform it to setuptools requirements.'''
+    """Parse pip reqs file and transform it to setuptools requirements."""
     requirements = []
     for line in io.open(os.path.join('requirements', '{0}.pip'.format(filename))):
         line = line.strip()
@@ -56,18 +56,18 @@ long_description = '\n'.join((
 ))
 
 
-exec(compile(open('flask_restplus/__about__.py').read(), 'flask_restplus/__about__.py', 'exec'))
+exec(compile(open('quart_restplus/__about__.py').read(), 'quart_restplus/__about__.py', 'exec'))
 
 install_requires = pip('install')
 doc_require = pip('doc')
 tests_require = pip('test')
 
 setup(
-    name='flask-restplus',
+    name='quart-restplus',
     version=__version__,
     description=__description__,
     long_description=long_description,
-    url='https://github.com/noirbizarre/flask-restplus',
+    url='https://github.com/noirbizarre/quart-restplus',
     author='Axel Haustant',
     author_email='axel@data.gouv.fr',
     packages=find_packages(exclude=['tests', 'tests.*']),
@@ -80,7 +80,7 @@ setup(
     },
     license='BSD-3-Clause',
     zip_safe=False,
-    keywords='flask restplus rest api swagger openapi',
+    keywords='quart restplus rest api swagger openapi',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Programming Language :: Python',

@@ -1,44 +1,31 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
-import json
+import inspect
+import asyncio
 import pytest
+import quart_restplus as restplus
 
-from flask import Flask, Blueprint
-from flask.testing import FlaskClient
+from _pytest.python import Function
+from _pytest.fixtures import SubRequest
 
-import flask_restplus as restplus
-
-
-class TestClient(FlaskClient):
-    def get_json(self, url, status=200, **kwargs):
-        response = self.get(url, **kwargs)
-        assert response.status_code == status
-        assert response.content_type == 'application/json'
-        return json.loads(response.data.decode('utf8'))
-
-    def post_json(self, url, data, status=200, **kwargs):
-        response = self.post(url, data=json.dumps(data),
-                             headers={'content-type': 'application/json'})
-        assert response.status_code == status
-        assert response.content_type == 'application/json'
-        return json.loads(response.data.decode('utf8'))
-
-    def get_specs(self, prefix='', status=200, **kwargs):
-        '''Get a Swagger specification for a RestPlus API'''
-        return self.get_json('{0}/swagger.json'.format(prefix), status=status, **kwargs)
+from quart import Blueprint
+from quart_restplus.testing import TestQuart, TestClient
 
 
 @pytest.fixture
 def app():
-    app = Flask(__name__)
+    app = TestQuart(__name__)
     app.test_client_class = TestClient
-    yield app
+    return app
 
 
 @pytest.fixture
-def api(request, app):
-    marker = request.keywords.get('api')
+def client(app):
+    return app.test_client()
+
+
+@pytest.fixture
+def api(request: SubRequest, app: TestQuart):
+    marker = request.node.get_closest_marker('api')
     bpkwargs = {}
     kwargs = {}
     if marker:
@@ -54,17 +41,16 @@ def api(request, app):
 
 
 @pytest.fixture(autouse=True)
-def _push_custom_request_context(request):
-    app = request.getfuncargvalue('app')
-    options = request.keywords.get('request_context')
+def _config_app(request: SubRequest, app: TestQuart):
+    marker = request.node.get_closest_marker('config')
+    if marker:
+        for key, value in marker.kwargs.items():
+            app.config[key.upper()] = value
 
-    if options is None:
-        return
 
-    ctx = app.test_request_context(*options.args, **options.kwargs)
-    ctx.push()
-
-    def teardown():
-        ctx.pop()
-
-    request.addfinalizer(teardown)
+@pytest.fixture(autouse=True)
+def _mark_asyncio(request: SubRequest, event_loop: asyncio.AbstractEventLoop):
+    node: Function = request.node
+    if inspect.iscoroutinefunction(request.function):
+        node.funcargs.setdefault('event_loop', event_loop)
+        node.add_marker(pytest.mark.asyncio)

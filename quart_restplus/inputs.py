@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''
+"""
 This module provide some helpers for advanced types parsing.
 
 You can define you own parser using the same pattern:
@@ -15,15 +15,13 @@ You can define you own parser using the same pattern:
     my_type.__schema__ = {'type': 'string', 'format': 'my-custom-format'}
 
 The last line allows you to document properly the type in the Swagger documentation.
-'''
-from __future__ import unicode_literals
-
+"""
 import re
 import socket
 
 from datetime import datetime, time, timedelta
 from email.utils import parsedate_tz, mktime_tz
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 
 import aniso8601
 import pytz
@@ -56,7 +54,7 @@ time_regex = re.compile(r'\d{2}:\d{2}')
 
 
 def ipv4(value):
-    '''Validate an IPv4 address'''
+    """Validate an IPv4 address"""
     try:
         socket.inet_aton(value)
         if value.count('.') == 3:
@@ -70,7 +68,7 @@ ipv4.__schema__ = {'type': 'string', 'format': 'ipv4'}
 
 
 def ipv6(value):
-    '''Validate an IPv6 address'''
+    """Validate an IPv6 address"""
     try:
         socket.inet_pton(socket.AF_INET6, value)
         return value
@@ -82,7 +80,7 @@ ipv6.__schema__ = {'type': 'string', 'format': 'ipv6'}
 
 
 def ip(value):
-    '''Validate an IP address (both IPv4 and IPv6)'''
+    """Validate an IP address (both IPv4 and IPv6)"""
     try:
         return ipv4(value)
     except ValueError:
@@ -97,7 +95,7 @@ ip.__schema__ = {'type': 'string', 'format': 'ip'}
 
 
 class URL(object):
-    '''
+    """
     Validate an URL.
 
     Example::
@@ -117,7 +115,7 @@ class URL(object):
     :param list|tuple schemes: Restrict valid schemes to this list
     :param list|tuple domains: Restrict valid domains to this list
     :param list|tuple exclude: Exclude some domains
-    '''
+    """
     def __init__(self, check=False, ip=False, local=False, port=False, auth=False,
                  schemes=None, domains=None, exclude=None):
         self.check = check
@@ -201,7 +199,7 @@ url = URL(ip=True, auth=True, port=True, local=True, schemes=('http', 'https', '
 
 
 class email(object):
-    '''
+    """
     Validate an email.
 
     Example::
@@ -217,7 +215,7 @@ class email(object):
     :param bool local: Allow localhost (both string or ip) as domain
     :param list|tuple domains: Restrict valid domains to this list
     :param list|tuple exclude: Exclude some domains
-    '''
+    """
     def __init__(self, check=False, ip=False, local=False, domains=None, exclude=None):
         self.check = check
         self.ip = ip
@@ -265,7 +263,7 @@ class email(object):
 
 
 class regex(object):
-    '''
+    """
     Validate a string based on a regular expression.
 
     Example::
@@ -277,7 +275,7 @@ class regex(object):
     but numbers.
 
     :param str pattern: The regular expression the input must match
-    '''
+    """
 
     def __init__(self, pattern):
         self.pattern = pattern
@@ -301,7 +299,7 @@ class regex(object):
 
 
 def _normalize_interval(start, end, value):
-    '''
+    """
     Normalize datetime intervals.
 
     Given a pair of datetime.date or datetime.datetime objects,
@@ -317,7 +315,7 @@ def _normalize_interval(start, end, value):
     Params:
         - start: A date or datetime
         - end: A date or datetime
-    '''
+    """
     if not isinstance(start, datetime):
         start = datetime.combine(start, START_OF_DAY)
         end = datetime.combine(end, START_OF_DAY)
@@ -357,10 +355,10 @@ def _expand_datetime(start, value):
 
 
 def _parse_interval(value):
-    '''
+    """
     Do some nasty try/except voodoo to get some sort of datetime
     object(s) out of the string.
-    '''
+    """
     try:
         return sorted(aniso8601.parse_interval(value))
     except ValueError:
@@ -371,7 +369,7 @@ def _parse_interval(value):
 
 
 def iso8601interval(value, argument='argument'):
-    '''
+    """
     Parses ISO 8601-formatted datetime intervals into tuples of datetimes.
 
     Accepts both a single date(time) or a full interval using either start/end
@@ -397,7 +395,7 @@ def iso8601interval(value, argument='argument'):
     :return: Two UTC datetimes, the start and the end of the specified interval
     :rtype: A tuple (datetime, datetime)
     :raises ValueError: if the interval is invalid.
-    '''
+    """
     if not value:
         raise ValueError('Expected a valid ISO8601 date/time interval.')
 
@@ -420,7 +418,7 @@ iso8601interval.__schema__ = {'type': 'string', 'format': 'iso8601-interval'}
 
 
 def date(value):
-    '''Parse a valid looking date in the format YYYY-mm-dd'''
+    """Parse a valid looking date in the format YYYY-mm-dd"""
     date = datetime.strptime(value, "%Y-%m-%d")
     return date
 
@@ -436,7 +434,7 @@ def _get_integer(value):
 
 
 def natural(value, argument='argument'):
-    '''Restrict input type to the natural numbers (0, 1, 2, 3...)'''
+    """Restrict input type to the natural numbers (0, 1, 2, 3...)"""
     value = _get_integer(value)
     if value < 0:
         msg = 'Invalid {arg}: {value}. {arg} must be a non-negative integer'
@@ -448,7 +446,7 @@ natural.__schema__ = {'type': 'integer', 'minimum': 0}
 
 
 def positive(value, argument='argument'):
-    '''Restrict input type to the positive integers (1, 2, 3...)'''
+    """Restrict input type to the positive integers (1, 2, 3...)"""
     value = _get_integer(value)
     if value < 1:
         msg = 'Invalid {arg}: {value}. {arg} must be a positive integer'
@@ -460,7 +458,7 @@ positive.__schema__ = {'type': 'integer', 'minimum': 0, 'exclusiveMinimum': True
 
 
 class int_range(object):
-    '''Restrict input to an integer in a range (inclusive)'''
+    """Restrict input to an integer in a range (inclusive)"""
     def __init__(self, low, high, argument='argument'):
         self.low = low
         self.high = high
@@ -483,7 +481,7 @@ class int_range(object):
 
 
 def boolean(value):
-    '''
+    """
     Parse the string ``"true"`` or ``"false"`` as a boolean (case insensitive).
 
     Also accepts ``"1"`` and ``"0"`` as ``True``/``False`` (respectively).
@@ -492,7 +490,7 @@ def boolean(value):
     and will be passed through without further parsing.
 
     :raises ValueError: if the boolean value is invalid
-    '''
+    """
     if isinstance(value, bool):
         return value
 
@@ -512,7 +510,7 @@ boolean.__schema__ = {'type': 'boolean'}
 
 
 def datetime_from_rfc822(value):
-    '''
+    """
     Turns an RFC822 formatted date into a datetime object.
 
     Example::
@@ -524,7 +522,7 @@ def datetime_from_rfc822(value):
     :rtype: datetime
     :raises ValueError: if value is an invalid date literal
 
-    '''
+    """
     raw = value
     if not time_regex.search(value):
         value = ' '.join((value, '00:00:00'))
@@ -540,7 +538,7 @@ def datetime_from_rfc822(value):
 
 
 def datetime_from_iso8601(value):
-    '''
+    """
     Turns an ISO8601 formatted date into a datetime object.
 
     Example::
@@ -552,7 +550,7 @@ def datetime_from_iso8601(value):
     :rtype: datetime
     :raises ValueError: if value is an invalid date literal
 
-    '''
+    """
     try:
         try:
             return aniso8601.parse_datetime(value)
@@ -567,7 +565,7 @@ datetime_from_iso8601.__schema__ = {'type': 'string', 'format': 'date-time'}
 
 
 def date_from_iso8601(value):
-    '''
+    """
     Turns an ISO8601 formatted date into a date object.
 
     Example::
@@ -581,7 +579,7 @@ def date_from_iso8601(value):
     :rtype: date
     :raises ValueError: if value is an invalid date literal
 
-    '''
+    """
     return datetime_from_iso8601(value).date()
 
 

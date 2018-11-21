@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+import pytz
+import pytest
 
 from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
 from functools import partial
 
-import pytz
-import pytest
-
-from flask import Blueprint
-from flask_restplus import fields, Api
+from quart import Blueprint
+from quart_restplus import fields, Api
 
 
 class FieldTestCase(object):
@@ -32,6 +30,8 @@ class FieldTestCase(object):
 
 
 class BaseFieldTestMixin(object):
+    field_class = None
+
     def test_description(self):
         field = self.field_class(description='A description')
         assert 'description' in field.__schema__
@@ -53,6 +53,8 @@ class BaseFieldTestMixin(object):
 
 
 class NumberTestMixin(object):
+    field_class = None
+
     def test_min(self):
         field = self.field_class(min=0)
         assert 'minimum' in field.__schema__
@@ -96,6 +98,8 @@ class NumberTestMixin(object):
 
 
 class StringTestMixin(object):
+    field_class = None
+
     def test_min_length(self):
         field = self.field_class(min_length=1)
         assert 'minLength' in field.__schema__
@@ -122,8 +126,8 @@ class StringTestMixin(object):
         assert field.__schema__['pattern'] == '[a-z]'
 
 
-class RawFieldTest(BaseFieldTestMixin, FieldTestCase):
-    ''' Test Raw field AND some common behaviors'''
+class TestRawField(BaseFieldTestMixin, FieldTestCase):
+    """ Test Raw field AND some common behaviors"""
     field_class = fields.Raw
 
     def test_type(self):
@@ -180,7 +184,7 @@ class RawFieldTest(BaseFieldTestMixin, FieldTestCase):
         assert field.output('bar.value', foo) == 42
 
 
-class StringFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
+class TestStringField(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
     field_class = fields.String
 
     def test_defaults(self):
@@ -253,7 +257,7 @@ class StringFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
         self.assert_field(fields.String(), value, expected)
 
 
-class IntegerFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
+class TestIntegerField(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
     field_class = fields.Integer
 
     def test_defaults(self):
@@ -282,7 +286,7 @@ class IntegerFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
         self.assert_field_raises(field, 'an int')
 
 
-class BooleanFieldTest(BaseFieldTestMixin, FieldTestCase):
+class TestBooleanField(BaseFieldTestMixin, FieldTestCase):
     field_class = fields.Boolean
 
     def test_defaults(self):
@@ -306,7 +310,7 @@ class BooleanFieldTest(BaseFieldTestMixin, FieldTestCase):
         self.assert_field(fields.Boolean(), value, expected)
 
 
-class FloatFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
+class TestFloatField(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
     field_class = fields.Float
 
     def test_defaults(self):
@@ -342,7 +346,7 @@ PI_STR = ('3.1415926535897932384626433832795028841971693993751058209749445923078
 PI = Decimal(PI_STR)
 
 
-class FixedFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
+class TestFixedField(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
     field_class = fields.Fixed
 
     def test_defaults(self):
@@ -378,7 +382,7 @@ class FixedFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
         self.assert_field_raises(field, 'NaN')
 
 
-class ArbitraryFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
+class TestArbitraryField(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
     field_class = fields.Arbitrary
 
     def test_defaults(self):
@@ -398,7 +402,7 @@ class ArbitraryFieldTest(BaseFieldTestMixin, NumberTestMixin, FieldTestCase):
         self.assert_field(fields.Arbitrary(), value, expected)
 
 
-class DatetimeFieldTest(BaseFieldTestMixin, FieldTestCase):
+class TestDatetimeField(BaseFieldTestMixin, FieldTestCase):
     field_class = fields.DateTime
 
     def test_defaults(self):
@@ -511,7 +515,7 @@ class DatetimeFieldTest(BaseFieldTestMixin, FieldTestCase):
         self.assert_field_raises(field, 'xxx')
 
 
-class DateFieldTest(BaseFieldTestMixin, FieldTestCase):
+class TestDateField(BaseFieldTestMixin, FieldTestCase):
     field_class = fields.Date
 
     def test_defaults(self):
@@ -598,7 +602,7 @@ class DateFieldTest(BaseFieldTestMixin, FieldTestCase):
         self.assert_field_raises(fields.Date(), 'xxx')
 
 
-class FormatedStringFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
+class TestFormatedStringField(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
     field_class = partial(fields.FormattedString, 'Hello {name}')
 
     def test_defaults(self):
@@ -636,7 +640,7 @@ class FormatedStringFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase
         self.assert_field_raises(field, (3, 4))
 
 
-class UrlFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
+class TestUrlField(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
     field_class = partial(fields.Url, 'endpoint')
 
     def test_defaults(self):
@@ -648,109 +652,110 @@ class UrlFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url('foobar')
 
-        with app.test_request_context('/'):
-            with pytest.raises(fields.MarshallingError):
-                field.output('foo', None)
+        with pytest.raises(fields.MarshallingError):
+            field.output('foo', None)
 
-    def test_simple(self, app, mocker):
+    async def test_simple(self, app, mocker):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url('foobar')
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/'):
+        async with app.test_request_context():
             assert '/42' == field.output('foo', obj)
 
-    def test_absolute(self, app, mocker):
+    async def test_absolute(self, app, mocker):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url('foobar', absolute=True)
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/'):
+        async with app.test_request_context():
             assert 'http://localhost/42' == field.output('foo', obj)
 
-    def test_absolute_scheme(self, app, mocker):
-        '''Url.scheme should override current_request.scheme'''
+    async def test_absolute_scheme(self, app, mocker):
+        """Url.scheme should override current_request.scheme"""
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url('foobar', absolute=True, scheme='https')
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/', base_url='http://localhost'):
+        async with app.test_request_context():
             assert 'https://localhost/42' == field.output('foo', obj)
 
-    def test_without_endpoint_invalid_object(self, app):
+    async def test_without_endpoint_invalid_object(self, app):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url()
 
-        with app.test_request_context('/foo'):
+        async with app.test_request_context():
             with pytest.raises(fields.MarshallingError):
                 field.output('foo', None)
 
-    def test_without_endpoint(self, app, mocker):
+    async def test_without_endpoint(self, app, mocker):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url()
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo'):
+        async with app.test_request_context('/foo'):
             assert '/42' == field.output('foo', obj)
 
-    def test_without_endpoint_absolute(self, app, mocker):
+    async def test_without_endpoint_absolute(self, app, mocker):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url(absolute=True)
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo'):
+        async with app.test_request_context('/foo'):
             assert 'http://localhost/42' == field.output('foo', obj)
 
-    def test_without_endpoint_absolute_scheme(self, app, mocker):
+    async def test_without_endpoint_absolute_scheme(self, app, mocker):
         app.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         field = fields.Url(absolute=True, scheme='https')
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo', base_url='http://localhost'):
+        app.base_url = 'http://localhost'
+        async with app.test_request_context('/foo'):
             assert 'https://localhost/42' == field.output('foo', obj)
 
-    def test_with_blueprint_invalid_object(self, app):
+    async def test_with_blueprint_invalid_object(self, app):
         bp = Blueprint('foo', __name__, url_prefix='/foo')
         bp.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         app.register_blueprint(bp)
         field = fields.Url()
 
-        with app.test_request_context('/foo/foo'):
+        async with app.test_request_context('/foo/foo'):
             with pytest.raises(fields.MarshallingError):
                 field.output('foo', None)
 
-    def test_with_blueprint(self, app, mocker):
+    async def test_with_blueprint(self, app, mocker):
         bp = Blueprint('foo', __name__, url_prefix='/foo')
         bp.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         app.register_blueprint(bp)
         field = fields.Url()
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo/foo'):
+        async with app.test_request_context('/foo/foo'):
             assert '/foo/42' == field.output('foo', obj)
 
-    def test_with_blueprint_absolute(self, app, mocker):
+    async def test_with_blueprint_absolute(self, app, mocker):
         bp = Blueprint('foo', __name__, url_prefix='/foo')
         bp.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         app.register_blueprint(bp)
         field = fields.Url(absolute=True)
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo/foo'):
+        async with app.test_request_context('/foo/foo'):
             assert 'http://localhost/foo/42' == field.output('foo', obj)
 
-    def test_with_blueprint_absolute_scheme(self, app, mocker):
+    async def test_with_blueprint_absolute_scheme(self, app, mocker):
         bp = Blueprint('foo', __name__, url_prefix='/foo')
         bp.add_url_rule('/<foo>', 'foobar', view_func=lambda x: x)
         app.register_blueprint(bp)
         field = fields.Url(absolute=True, scheme='https')
         obj = mocker.Mock(foo=42)
 
-        with app.test_request_context('/foo/foo', base_url='http://localhost'):
+        app.base_url = 'http://localhost'
+        async with app.test_request_context('/foo/foo'):
             assert 'https://localhost/foo/42' == field.output('foo', obj)
 
 
-class NestedFieldTest(FieldTestCase):
+class TestNestedField(FieldTestCase):
     def test_defaults(self, api):
         nested_fields = api.model('NestedModel', {'name': fields.String})
         field = fields.Nested(nested_fields)
@@ -819,7 +824,7 @@ class NestedFieldTest(FieldTestCase):
         assert field.__schema__ == {'$ref': '#/definitions/NestedModel'}
 
 
-class ListFieldTest(BaseFieldTestMixin, FieldTestCase):
+class TestListField(BaseFieldTestMixin, FieldTestCase):
     field_class = partial(fields.List, fields.String)
 
     def test_defaults(self):
@@ -902,13 +907,14 @@ class ListFieldTest(BaseFieldTestMixin, FieldTestCase):
         self.assert_field(field, data, data)
 
 
-class WildcardFieldTest(BaseFieldTestMixin, FieldTestCase):
+class TestWildcardField(BaseFieldTestMixin, FieldTestCase):
     field_class = partial(fields.Wildcard, fields.String)
 
     def test_types(self):
         with pytest.raises(fields.MarshallingError):
             class WrongType:
                 pass
+
             x = WrongType()
             field1 = fields.Wildcard(WrongType)  # noqa
             field2 = fields.Wildcard(x)  # noqa
@@ -1037,7 +1043,7 @@ class WildcardFieldTest(BaseFieldTestMixin, FieldTestCase):
         assert result2 == result1
 
 
-class ClassNameFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
+class TestClassNameField(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
     field_class = fields.ClassName
 
     def test_simple_string_field(self):
@@ -1077,7 +1083,7 @@ class ClassNameFieldTest(StringTestMixin, BaseFieldTestMixin, FieldTestCase):
         assert data == {'name': 'object'}
 
 
-class PolymorphTest(FieldTestCase):
+class TestPolymorph(FieldTestCase):
     def test_polymorph_field(self, api):
         parent = api.model('Person', {
             'name': fields.String,
@@ -1321,7 +1327,7 @@ class PolymorphTest(FieldTestCase):
         }}
 
 
-class CustomFieldTest(FieldTestCase):
+class TestCustomField(FieldTestCase):
     def test_custom_field(self):
         class CustomField(fields.Integer):
             __schema_format__ = 'int64'
@@ -1331,7 +1337,7 @@ class CustomFieldTest(FieldTestCase):
         assert field.__schema__ == {'type': 'integer', 'format': 'int64'}
 
 
-class FieldsHelpersTest(object):
+class TestFieldsHelpers(object):
     def test_to_dict(self):
         expected = data = {'foo': 42}
         assert fields.to_marshallable_type(data) == expected
@@ -1340,6 +1346,7 @@ class FieldsHelpersTest(object):
         class Foo(object):
             def __init__(self):
                 self.foo = 42
+
         expected = {'foo': 42}
         assert fields.to_marshallable_type(Foo()) == expected
 
@@ -1347,6 +1354,7 @@ class FieldsHelpersTest(object):
         class Foo(object):
             def __marshallable__(self):
                 return {'foo': 42}
+
         expected = {'foo': 42}
         assert fields.to_marshallable_type(Foo()) == expected
 

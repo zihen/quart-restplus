@@ -36,7 +36,9 @@ nosetests.xml
 coverage.xml
 prof/
 histograms/
+.coverage_report
 .benchmarks
+.pytest_cache
 
 # Translations
 *.mo
@@ -62,3 +64,7 @@ doc/_build/
 # Specifics
 flask_restplus/static
 node_modules
+
+# IDE
+.idea
+.vscode

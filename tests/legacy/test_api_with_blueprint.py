@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+import quart
+import quart_restplus as restplus
 
-import flask
-
-from flask import Blueprint, request
-
-import flask_restplus as restplus
+from quart import Blueprint, request
 
 
 # Add a dummy Resource to verify that the app is properly set.
@@ -19,7 +16,7 @@ class GoodbyeWorld(restplus.Resource):
         self.err = err
 
     def get(self):
-        flask.abort(self.err)
+        quart.abort(self.err)
 
 
 class APIWithBlueprintTest(object):
@@ -148,7 +145,8 @@ class APIWithBlueprintTest(object):
 
         @app.route('/bye')
         def bye():
-            flask.abort(404)
+            quart.abort(404)
+
         with app.test_request_context('/hi', method='POST'):
             assert api._should_use_fr_error_handler() is False
             assert api._has_fr_route() is False

@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
-
 import pytest
 
 from jsonschema import ValidationError
 
-from flask_restplus import errors, schemas
+from quart_restplus import errors, schemas
 
 
-class SchemasTest:
+class TestSchemas:
     def test_lazyness(self):
         schema = schemas.LazySchema('oas-2.0.json')
         assert schema._schema is None
 
-        '' in schema  # Trigger load
+        _ = '' in schema  # Trigger load
         assert schema._schema is not None
         assert isinstance(schema._schema, dict)
 
@@ -22,7 +20,7 @@ class SchemasTest:
         assert isinstance(schemas.OAS_20, schemas.LazySchema)
 
 
-class ValidationTest:
+class TestValidation:
     def test_oas_20_valid(self):
         assert schemas.validate({
             'swagger': '2.0',

@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import pytest
 
-from flask_restplus import utils
+from quart_restplus import utils
 
 
-class MergeTestCase(object):
+class TestMerge(object):
     def test_merge_simple_dicts_without_precedence(self):
         a = {'a': 'value'}
         b = {'b': 'other value'}
@@ -73,7 +71,7 @@ class MergeTestCase(object):
         assert utils.merge(a, b) == b
 
 
-class CamelToDashTestCase(object):
+class TestCamelToDash(object):
     def test_no_transform(self):
         assert utils.camel_to_dash('test') == 'test'
 
@@ -87,7 +85,7 @@ class CamelToDashTestCase(object):
         assert utils.camel_to_dash(value) == expected
 
 
-class UnpackTest(object):
+class TestUnpack(object):
     def test_single_value(self):
         data, code, headers = utils.unpack('test')
         assert data == 'test'

@@ -1,7 +1,7 @@
-from flask import Flask, request
-from flask_restplus import Resource, Api
+from quart import Quart, request
+from quart_restplus import Resource, Api
 
-app = Flask(__name__)
+app = Quart(__name__)
 api = Api(app)
 
 todos = {}

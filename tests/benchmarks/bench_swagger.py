@@ -1,7 +1,7 @@
 import pytest
 
-from flask_restplus import fields, Api, Resource
-from flask_restplus.swagger import Swagger
+from quart_restplus import fields, Api, Resource
+from quart_restplus.swagger import Swagger
 
 api = Api()
 
@@ -22,13 +22,13 @@ family = api.model('Family', {
 class Families(Resource):
     @api.marshal_with(family)
     def get(self):
-        '''List all families'''
+        """List all families"""
         pass
 
     @api.marshal_with(family)
     @api.response(201, 'Family created')
     def post(self):
-        '''Create a new family'''
+        """Create a new family"""
         pass
 
 
@@ -37,12 +37,12 @@ class Families(Resource):
 class Family(Resource):
     @api.marshal_with(family)
     def get(self):
-        '''Get a family given its name'''
+        """Get a family given its name"""
         pass
 
     @api.marshal_with(family)
     def put(self):
-        '''Update a family given its name'''
+        """Update a family given its name"""
         pass
 
 
@@ -50,13 +50,13 @@ class Family(Resource):
 class Persons(Resource):
     @api.marshal_with(person)
     def get(self):
-        '''List all persons'''
+        """List all persons"""
         pass
 
     @api.marshal_with(person)
     @api.response(201, 'Person created')
     def post(self):
-        '''Create a new person'''
+        """Create a new person"""
         pass
 
 
@@ -65,12 +65,12 @@ class Persons(Resource):
 class Person(Resource):
     @api.marshal_with(person)
     def get(self):
-        '''Get a person given its name'''
+        """Get a person given its name"""
         pass
 
     @api.marshal_with(person)
     def put(self):
-        '''Update a person given its name'''
+        """Update a person given its name"""
         pass
 
 

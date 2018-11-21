@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import json
 import pytest
 
 from collections import OrderedDict
 
-from flask_restplus import mask, Api, Resource, fields, marshal, Mask
+from quart_restplus import mask, Api, Resource, fields, marshal, Mask
 
 
 def assert_data(tested, expected):
-    '''Compare data without caring about order and type (dict vs. OrderedDict)'''
+    """Compare data without caring about order and type (dict vs. OrderedDict)"""
     tested = json.loads(json.dumps(tested))
     expected = json.loads(json.dumps(expected))
     assert tested == expected
@@ -115,18 +113,19 @@ class MaskMixin(object):
         assert Mask('field_name') == {'field_name': True}
 
 
-class MaskUnwrappedTest(MaskMixin):
+class TestMaskUnwrapped(MaskMixin):
     def parse(self, value):
         return Mask(value)
 
 
-class MaskWrappedTest(MaskMixin):
+class TestMaskWrapped(MaskMixin):
     def parse(self, value):
         return Mask('{' + value + '}')
 
 
 class DObject(object):
-    '''A dead simple object built from a dictionnary (no recursion)'''
+    """A dead simple object built from a dictionnary (no recursion)"""
+
     def __init__(self, data):
         self.__dict__.update(data)
 
@@ -137,7 +136,7 @@ person_fields = {
 }
 
 
-class ApplyMaskTest(object):
+class TestApplyMask(object):
     def test_empty(self):
         data = {
             'integer': 42,
@@ -263,11 +262,11 @@ class ApplyMaskTest(object):
         }
 
         result = mask.apply(family_fields, 'father{name},mother{age}')
-        assert set(result.keys()) == set(['father', 'mother'])
+        assert set(result.keys()) == {'father', 'mother'}
         assert isinstance(result['father'], fields.Nested)
-        assert set(result['father'].nested.keys()) == set(['name'])
+        assert set(result['father'].nested.keys()) == {'name'}
         assert isinstance(result['mother'], fields.Nested)
-        assert set(result['mother'].nested.keys()) == set(['age'])
+        assert set(result['mother'].nested.keys()) == {'age'}
 
         data = {
             'father': {'name': 'John', 'age': 42},
@@ -285,9 +284,9 @@ class ApplyMaskTest(object):
         root = {'nested': fields.Nested(level_1)}
 
         result = mask.apply(root, 'nested{nested_1{nested_2{name}}}')
-        assert set(result.keys()) == set(['nested'])
+        assert set(result.keys()) == {'nested'}
         assert isinstance(result['nested'], fields.Nested)
-        assert set(result['nested'].nested.keys()) == set(['nested_1'])
+        assert set(result['nested'].nested.keys()) == {'nested_1'}
 
         data = {
             'nested': {
@@ -315,7 +314,7 @@ class ApplyMaskTest(object):
         }
 
         result = mask.apply(family_fields, 'members')
-        assert set(result.keys()) == set(['members'])
+        assert set(result.keys()) == {'members'}
         assert isinstance(result['members'], fields.List)
         assert isinstance(result['members'].container, fields.String)
 
@@ -332,10 +331,10 @@ class ApplyMaskTest(object):
         }
 
         result = mask.apply(family_fields, 'members{name}')
-        assert set(result.keys()) == set(['members'])
+        assert set(result.keys()) == {'members'}
         assert isinstance(result['members'], fields.List)
         assert isinstance(result['members'].container, fields.Nested)
-        assert set(result['members'].container.nested.keys()) == set(['name'])
+        assert set(result['members'].container.nested.keys()) == {'name'}
 
         data = {'members': [
             {'name': 'John', 'age': 42},
@@ -472,8 +471,8 @@ class ApplyMaskTest(object):
             mask.apply(model, 'nested{notpossible}')
 
 
-class MaskAPI(object):
-    def test_marshal_with_honour_field_mask_header(self, app, client):
+class TestMaskAPI(object):
+    async def test_marshal_with_honour_field_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -492,12 +491,12 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/', headers={
+        data = await client.get_json('/test/', headers={
             'X-Fields': '{name,age}'
         })
         assert data == {'name': 'John Doe', 'age': 42}
 
-    def test_marshal_with_honour_field_mask_list(self, app, client):
+    async def test_marshal_with_honour_field_mask_list(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -520,7 +519,7 @@ class MaskAPI(object):
                     'boolean': False
                 }]
 
-        data = client.get_json('/test/', headers={'X-Fields': '{name,age}'})
+        data = await client.get_json('/test/', headers={'X-Fields': '{name,age}'})
         assert data == [{
             'name': 'John Doe',
             'age': 42,
@@ -529,7 +528,7 @@ class MaskAPI(object):
             'age': 33,
         }]
 
-    def test_marshal_with_honour_complex_field_mask_header(self, app, client):
+    async def test_marshal_with_honour_complex_field_mask_header(self, app, client):
         api = Api(app)
 
         person = api.model('Person', person_fields)
@@ -565,7 +564,7 @@ class MaskAPI(object):
                     ]
                 }}
 
-        data = client.get_json('/test/', headers={
+        data = await client.get_json('/test/', headers={
             'X-Fields': 'family{father{name},mother{age},children{name,attr},free{key-2}}'
         })
         assert data == {'family': {
@@ -597,7 +596,7 @@ class MaskAPI(object):
             'age': 42,
         }
 
-    def test_marshal_with_honour_default_mask(self, app, client):
+    async def test_marshal_with_honour_default_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -616,13 +615,13 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = self.get_json('/test/')
-        self.assertEqual(data, {
+        data = await client.get_json('/test/')
+        assert data == {
             'name': 'John Doe',
             'age': 42,
-        })
+        }
 
-    def test_marshal_with_honour_default_model_mask(self, app, client):
+    async def test_marshal_with_honour_default_model_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -641,10 +640,10 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/')
+        data = await client.get_json('/test/')
         assert data == {'name': 'John Doe', 'age': 42}
 
-    def test_marshal_with_honour_header_field_mask_with_default_model_mask(self, app, client):
+    async def test_marshal_with_honour_header_field_mask_with_default_model_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -663,12 +662,12 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/', headers={
+        data = await client.get_json('/test/', headers={
             'X-Fields': '{name}'
         })
         assert data == {'name': 'John Doe'}
 
-    def test_marshal_with_honour_header_default_mask_with_default_model_mask(self, app, client):
+    async def test_marshal_with_honour_header_default_mask_with_default_model_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -687,10 +686,10 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/')
+        data = await client.get_json('/test/')
         assert data == {'name': 'John Doe'}
 
-    def test_marshal_with_honour_header_field_mask_with_default_mask(self, app, client):
+    async def test_marshal_with_honour_header_field_mask_with_default_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -709,10 +708,10 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/', headers={'X-Fields': '{name}'})
+        data = await client.get_json('/test/', headers={'X-Fields': '{name}'})
         assert data == {'name': 'John Doe'}
 
-    def test_marshal_with_honour_header_field_mask_with_default_mask_and_default_model_mask(self, app, client):
+    async def test_marshal_with_honour_header_field_mask_with_default_mask_and_default_model_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -731,10 +730,10 @@ class MaskAPI(object):
                     'boolean': True
                 }
 
-        data = client.get_json('/test/', headers={'X-Fields': '{name}'})
+        data = await client.get_json('/test/', headers={'X-Fields': '{name}'})
         assert data == {'name': 'John Doe'}
 
-    def test_marshal_with_honour_custom_field_mask(self, app, client):
+    async def test_marshal_with_honour_custom_field_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -754,11 +753,11 @@ class MaskAPI(object):
                 }
 
         app.config['RESTPLUS_MASK_HEADER'] = 'X-Mask'
-        data = client.get_json('/test/', headers={'X-Mask': '{name,age}'})
+        data = await client.get_json('/test/', headers={'X-Mask': '{name,age}'})
 
         assert data == {'name': 'John Doe', 'age': 42}
 
-    def test_marshal_does_not_hit_unrequired_attributes(self, app, client):
+    async def test_marshal_does_not_hit_unrequired_attributes(self, app, client):
         api = Api(app)
 
         model = api.model('Person', {
@@ -782,10 +781,10 @@ class MaskAPI(object):
             def get(self):
                 return Person('John Doe', 42)
 
-        data = client.get_json('/test/', headers={'X-Fields': '{name,age}'})
+        data = await client.get_json('/test/', headers={'X-Fields': '{name,age}'})
         assert data == {'name': 'John Doe', 'age': 42}
 
-    def test_marshal_with_skip_missing_fields(self, app, client):
+    async def test_marshal_with_skip_missing_fields(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -802,7 +801,7 @@ class MaskAPI(object):
                     'age': 42,
                 }
 
-        data = client.get_json('/test/', headers={'X-Fields': '{name,missing}'})
+        data = await client.get_json('/test/', headers={'X-Fields': '{name,missing}'})
         assert data == {'name': 'John Doe'}
 
     def test_marshal_handle_inheritance(self, app):
@@ -833,7 +832,7 @@ class MaskAPI(object):
             result = marshal(data, child, mask=value)
             assert result == expected
 
-    def test_marshal_with_handle_polymorph(self, app, client):
+    async def test_marshal_with_handle_polymorph(self, app, client):
         api = Api(app)
 
         parent = api.model('Person', {
@@ -868,25 +867,25 @@ class MaskAPI(object):
         @api.route('/thing-1/')
         class Thing1Resource(Resource):
             @api.marshal_with(thing)
-            def get(self):
+            async def get(self):
                 return {'owner': Child1()}
 
         @api.route('/thing-2/')
         class Thing2Resource(Resource):
             @api.marshal_with(thing)
-            def get(self):
+            async def get(self):
                 return {'owner': Child2()}
 
-        data = client.get_json('/thing-1/', headers={'X-Fields': 'owner{name}'})
+        data = await client.get_json('/thing-1/', headers={'X-Fields': 'owner{name}'})
         assert data == {'owner': {'name': 'child1'}}
 
-        data = client.get_json('/thing-1/', headers={'X-Fields': 'owner{extra1}'})
+        data = await client.get_json('/thing-1/', headers={'X-Fields': 'owner{extra1}'})
         assert data == {'owner': {'extra1': 'extra1'}}
 
-        data = client.get_json('/thing-2/', headers={'X-Fields': 'owner{name}'})
+        data = await client.get_json('/thing-2/', headers={'X-Fields': 'owner{name}'})
         assert data == {'owner': {'name': 'child2'}}
 
-    def test_raise_400_on_invalid_mask(self, app, client):
+    async def test_raise_400_on_invalid_mask(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -897,16 +896,16 @@ class MaskAPI(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self):
                 pass
 
-        response = client.get('/test/', headers={'X-Fields': 'name{,missing}'})
+        response = await client.get('/test/', headers={'X-Fields': 'name{,missing}'})
         assert response.status_code == 400
         assert response.content_type == 'application/json'
 
 
-class SwaggerMaskHeaderTest(object):
-    def test_marshal_with_expose_mask_header(self, app, client):
+class TestSwaggerMaskHeader(object):
+    async def test_marshal_with_expose_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -918,14 +917,14 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self):
                 return {
                     'name': 'John Doe',
                     'age': 42,
                     'boolean': True
                 }
 
-        specs = client.get_specs()
+        specs = await client.get_specs()
         op = specs['paths']['/test/']['get']
 
         assert 'parameters' in op
@@ -940,7 +939,7 @@ class SwaggerMaskHeaderTest(object):
         assert 'required' not in param
         assert 'default' not in param
 
-    def test_marshal_with_expose_custom_mask_header(self, app, client):
+    async def test_marshal_with_expose_custom_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -952,7 +951,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -960,7 +959,7 @@ class SwaggerMaskHeaderTest(object):
                 }
 
         app.config['RESTPLUS_MASK_HEADER'] = 'X-Mask'
-        specs = client.get_specs()
+        specs = await client.get_specs()
 
         op = specs['paths']['/test/']['get']
         assert 'parameters' in op
@@ -969,7 +968,7 @@ class SwaggerMaskHeaderTest(object):
         param = op['parameters'][0]
         assert param['name'] == 'X-Mask'
 
-    def test_marshal_with_disabling_mask_header(self, app, client):
+    async def test_marshal_with_disabling_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -981,7 +980,7 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self):
                 return {
                     'name': 'John Doe',
                     'age': 42,
@@ -989,13 +988,13 @@ class SwaggerMaskHeaderTest(object):
                 }
 
         app.config['RESTPLUS_MASK_SWAGGER'] = False
-        specs = client.get_specs()
+        specs = await client.get_specs()
 
         op = specs['paths']['/test/']['get']
 
         assert 'parameters' not in op
 
-    def test_is_only_exposed_on_marshal_with(self, app, client):
+    async def test_is_only_exposed_on_marshal_with(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -1006,19 +1005,19 @@ class SwaggerMaskHeaderTest(object):
 
         @api.route('/test/')
         class TestResource(Resource):
-            def get(self):
+            async def get(self):
                 return api.marshal({
                     'name': 'John Doe',
                     'age': 42,
                     'boolean': True
                 }, model)
 
-        specs = client.get_specs()
+        specs = await client.get_specs()
         op = specs['paths']['/test/']['get']
 
         assert 'parameters' not in op
 
-    def test_marshal_with_expose_default_mask_header(self, app, client):
+    async def test_marshal_with_expose_default_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -1030,10 +1029,10 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model, mask='{name,age}')
-            def get(self):
+            async def get(self):
                 pass
 
-        specs = client.get_specs()
+        specs = await client.get_specs()
         op = specs['paths']['/test/']['get']
 
         assert 'parameters' in op
@@ -1048,7 +1047,7 @@ class SwaggerMaskHeaderTest(object):
         assert param['in'] == 'header'
         assert 'required' not in param
 
-    def test_marshal_with_expose_default_model_mask_header(self, app, client):
+    async def test_marshal_with_expose_default_model_mask_header(self, app, client):
         api = Api(app)
 
         model = api.model('Test', {
@@ -1060,10 +1059,10 @@ class SwaggerMaskHeaderTest(object):
         @api.route('/test/')
         class TestResource(Resource):
             @api.marshal_with(model)
-            def get(self):
+            async def get(self):
                 pass
 
-        specs = client.get_specs()
+        specs = await client.get_specs()
         definition = specs['definitions']['Test']
         assert 'x-mask' in definition
         assert definition['x-mask'] == '{name,age}'

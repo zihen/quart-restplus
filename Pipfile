@@ -1,0 +1,33 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+"aniso8601" = "*"
+jsonschema = "*"
+pytz = "*"
+cached-property = "*"
+quart = "*"
+
+[dev-packages]
+invoke = "*"
+"flake8" = "*"
+tox = "*"
+blinker = "*"
+mock = "*"
+pytest = "*"
+pytest-benchmark = "*"
+pytest-cov = "*"
+pytest-faker = "*"
+pytest-asyncio = "*"
+pytest-mock = "*"
+pytest-profiling = "*"
+pytest-sugar = "*"
+tzlocal = "*"
+readme_renderer = "*"
+requests = "*"
+alabaster = "*"
+
+[requires]
+python_version = "3.7"

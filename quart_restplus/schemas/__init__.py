@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
-'''
+"""
 This module give access to OpenAPI specifications schemas
 and allows to validate specs against them.
 
 .. versionadded:: 0.12.1
-'''
-from __future__ import unicode_literals
-
+"""
 import io
 import json
 import pkg_resources
@@ -15,15 +13,15 @@ from collections import Mapping
 
 from jsonschema import Draft4Validator
 
-from flask_restplus import errors
+from quart_restplus import errors
 
 
 class SchemaValidationError(errors.ValidationError):
-    '''
+    """
     Raised when specification is not valid
 
     .. versionadded:: 0.12.1
-    '''
+    """
     def __init__(self, msg, errors=None):
         super(SchemaValidationError, self).__init__(msg)
         self.errors = errors
@@ -42,14 +40,14 @@ class SchemaValidationError(errors.ValidationError):
 
 
 class LazySchema(Mapping):
-    '''
+    """
     A thin wrapper around schema file lazy loading the data on first access
 
     :param filename str: The package relative json schema filename
     :param validator: The jsonschema validator class version
 
     .. versionadded:: 0.12.1
-    '''
+    """
     def __init__(self, filename, validator=Draft4Validator):
         super(LazySchema, self).__init__()
         self.filename = filename
@@ -76,7 +74,7 @@ class LazySchema(Mapping):
 
     @property
     def validator(self):
-        '''The jsonschema validator to validate against'''
+        """The jsonschema validator to validate against"""
         return self._validator(self)
 
 
@@ -90,7 +88,7 @@ VERSIONS = {
 
 
 def validate(data):
-    '''
+    """
     Validate an OpenAPI specification.
 
     Supported OpenAPI versions: 2.0
@@ -98,11 +96,11 @@ def validate(data):
     :param data dict: The specification to validate
     :returns boolean: True if the specification is valid
     :raises SchemaValidationError: when the specification is invalid
-    :raises flask_restplus.errors.SpecsError: when it's not possible to determinate
+    :raises quart_restplus.errors.SpecsError: when it's not possible to determinate
                                               the schema to validate against
 
     .. versionadded:: 0.12.1
-    '''
+    """
     if 'swagger' not in data:
         raise errors.SpecsError('Unable to determinate OpenAPI schema version')
 

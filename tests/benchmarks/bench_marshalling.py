@@ -2,7 +2,7 @@ import pytest
 
 from faker import Faker
 
-from flask_restplus import marshal, fields
+from quart_restplus import marshal, fields
 
 fake = Faker()
 

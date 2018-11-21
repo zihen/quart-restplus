@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
-import flask
+import quart
 import pytest
 import six
+import quart_restplus as restplus
 
 from json import dumps, JSONEncoder
-
-from flask import Blueprint, redirect, views
-from werkzeug.exceptions import HTTPException, Unauthorized, BadRequest
-
-import flask_restplus as restplus
+from quart import Blueprint, redirect, views
+from quart.exceptions import HTTPException, BadRequest
+from quart_restplus.exceptions import Unauthorized
 
 
 # Add a dummy Resource to verify that the app is properly set.
@@ -31,9 +28,9 @@ class APITest(object):
         response = mocker.Mock()
         response.headers = {}
         response = api.unauthorized(response)
-        assert response.headers['WWW-Authenticate'] == 'Basic realm="flask-restplus"'
+        assert response.headers['WWW-Authenticate'] == 'Basic realm="quart-restplus"'
 
-    @pytest.mark.options(HTTP_BASIC_AUTH_REALM='Foo')
+    @pytest.mark.config(HTTP_BASIC_AUTH_REALM='Foo')
     @pytest.mark.api(serve_challenge_on_401=True)
     def test_unauthorized_custom_realm(self, api, mocker):
         response = mocker.Mock()
@@ -54,10 +51,10 @@ class APITest(object):
 
         resp = api.handle_error(exception)
         assert resp.status_code == 401
-        assert resp.headers['WWW-Authenticate'] == 'Basic realm="flask-restplus"'
+        assert resp.headers['WWW-Authenticate'] == 'Basic realm="quart-restplus"'
 
     @pytest.mark.api(serve_challenge_on_401=True)
-    @pytest.mark.options(HTTP_BASIC_AUTH_REALM='test-realm')
+    @pytest.mark.config(HTTP_BASIC_AUTH_REALM='test-realm')
     def test_handle_error_401_sends_challege_configured_realm(self, api):
         resp = api.handle_error(Unauthorized())
         assert resp.status_code == 401
@@ -130,7 +127,7 @@ class APITest(object):
         def return_zero(func):
             return 0
 
-        app = mocker.Mock(flask.Flask)
+        app = mocker.Mock(quart.Quart)
         app.view_functions = {}
         app.extensions = {}
         app.config = {}
@@ -165,7 +162,7 @@ class APITest(object):
         with pytest.raises(ValueError):
             api.add_resource(Foo2, '/foo/toto', endpoint='bar')
 
-    def test_add_the_same_resource_on_same_endpoint(self, app):
+    def test_add_the_same_resource_on_same_endpoint(self, app, client):
         api = restplus.Api(app)
 
         class Foo1(restplus.Resource):
@@ -175,14 +172,13 @@ class APITest(object):
         api.add_resource(Foo1, '/foo', endpoint='bar')
         api.add_resource(Foo1, '/foo/toto', endpoint='blah')
 
-        with app.test_client() as client:
-            foo1 = client.get('/foo')
-            assert foo1.data == b'"foo1"\n'
-            foo2 = client.get('/foo/toto')
-            assert foo2.data == b'"foo1"\n'
+        foo1 = client.get('/foo')
+        assert foo1.data == b'"foo1"\n'
+        foo2 = client.get('/foo/toto')
+        assert foo2.data == b'"foo1"\n'
 
     def test_add_resource(self, mocker):
-        app = mocker.Mock(flask.Flask)
+        app = mocker.Mock(quart.Quart)
         app.view_functions = {}
         app.extensions = {}
         app.config = {}
@@ -194,7 +190,7 @@ class APITest(object):
                                             view_func=api.output())
 
     def test_add_resource_kwargs(self, mocker):
-        app = mocker.Mock(flask.Flask)
+        app = mocker.Mock(quart.Quart)
         app.view_functions = {}
         app.extensions = {}
         app.config = {}
@@ -219,14 +215,13 @@ class APITest(object):
                 return "{0} {1}".format(self.one, self.two)
 
         api.add_resource(Foo, '/foo',
-                resource_class_args=('wonderful',),
-                resource_class_kwargs={'secret_state': 'slurm'})
+                         resource_class_args=('wonderful',),
+                         resource_class_kwargs={'secret_state': 'slurm'})
 
         foo = client.get('/foo')
         assert foo.data == b'"wonderful slurm"\n'
 
     def test_output_unpack(self, app):
-
         def make_empty_response():
             return {'foo': 'bar'}
 
@@ -239,9 +234,8 @@ class APITest(object):
             assert resp.data.decode() == '{"foo": "bar"}\n'
 
     def test_output_func(self, app):
-
         def make_empty_resposne():
-            return flask.make_response('')
+            return quart.make_response('')
 
         api = restplus.Api(app)
 
@@ -261,12 +255,12 @@ class APITest(object):
         resource = restplus.Resource()
         resource.get = mocker.Mock()
         with app.test_request_context("/foo"):
-            resource.get.return_value = flask.make_response('')
+            resource.get.return_value = quart.make_response('')
             resource.dispatch_request()
 
     def test_resource_text_plain(self, app):
         def text(data, code, headers=None):
-            return flask.make_response(six.text_type(data))
+            return quart.make_response(six.text_type(data))
 
         class Foo(restplus.Resource):
             representations = {
@@ -323,7 +317,7 @@ class APITest(object):
         """Test that HTTPException's headers do not add a duplicate
         Content-Length header
 
-        https://github.com/flask-restful/flask-restful/issues/534
+        https://github.com/quart-restful/quart-restful/issues/534
         """
         r = api.handle_error(BadRequest())
         assert len(r.headers.getlist('Content-Length')) == 1

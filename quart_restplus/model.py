@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import copy
 import re
 import warnings
 
+from http import HTTPStatus
 from collections import OrderedDict, MutableMapping
-from six import iteritems, itervalues
-from werkzeug.utils import cached_property
+from cached_property import cached_property
 
 from .mask import Mask
 from .errors import abort
@@ -16,7 +14,6 @@ from jsonschema import Draft4Validator
 from jsonschema.exceptions import ValidationError
 
 from .utils import not_none
-from ._http import HTTPStatus
 
 
 RE_REQUIRED = re.compile(r'u?\'(?P<name>.*)\' is a required property', re.I | re.U)
@@ -29,12 +26,12 @@ def instance(cls):
 
 
 class ModelBase(object):
-    '''
+    """
     Handles validation and swagger style inheritance for both subclasses.
     Subclass must define `schema` attribute.
 
     :param str name: The model public name
-    '''
+    """
 
     def __init__(self, name, *args, **kwargs):
         super(ModelBase, self).__init__(*args, **kwargs)
@@ -51,11 +48,11 @@ class ModelBase(object):
 
     @property
     def ancestors(self):
-        '''
+        """
         Return the ancestors tree
-        '''
+        """
         ancestors = [p.ancestors for p in self.__parents__]
-        return set.union(set([self.name]), *ancestors)
+        return set.union({self.name}, *ancestors)
 
     def get_parent(self, name):
         if self.name == name:
@@ -85,11 +82,11 @@ class ModelBase(object):
 
     @classmethod
     def inherit(cls, name, *parents):
-        '''
+        """
         Inherit this model (use the Swagger composition pattern aka. allOf)
         :param str name: The new model name
         :param dict fields: The new model extra fields
-        '''
+        """
         model = cls(name, parents[-1])
         model.__parents__ = parents[:-1]
         return model
@@ -117,13 +114,13 @@ class ModelBase(object):
 
 
 class RawModel(ModelBase):
-    '''
+    """
     A thin wrapper on ordered fields dict to store API doc metadata.
     Can also be used for response marshalling.
 
     :param str name: The model public name
     :param str mask: an optional default model mask
-    '''
+    """
 
     wrapper = dict
 
@@ -142,7 +139,7 @@ class RawModel(ModelBase):
         properties = self.wrapper()
         required = set()
         discriminator = None
-        for name, field in iteritems(self):
+        for name, field in self.items():
             field = instance(field)
             properties[name] = field.__schema__
             if field.required:
@@ -160,9 +157,9 @@ class RawModel(ModelBase):
 
     @cached_property
     def resolved(self):
-        '''
+        """
         Resolve real fields before submitting them to marshal
-        '''
+        """
         # Duplicate fields
         resolved = copy.deepcopy(self)
 
@@ -171,7 +168,7 @@ class RawModel(ModelBase):
             resolved.update(parent.resolved)
 
         # Handle discriminator
-        candidates = [f for f in itervalues(resolved) if getattr(f, 'discriminator', None)]
+        candidates = [f for f in resolved.values() if getattr(f, 'discriminator', None)]
         # Ensure the is only one discriminator
         if len(candidates) > 1:
             raise ValueError('There can only be one discriminator by schema')
@@ -182,14 +179,14 @@ class RawModel(ModelBase):
         return resolved
 
     def extend(self, name, fields):
-        '''
+        """
         Extend this model (Duplicate all fields)
 
         :param str name: The new model name
         :param dict fields: The new model extra fields
 
         :depreated: since 0.9. Use :meth:`clone` instead.
-        '''
+        """
         warnings.warn('extend is is deprecated, use clone instead', DeprecationWarning, stacklevel=2)
         if isinstance(fields, (list, tuple)):
             return self.clone(name, *fields)
@@ -198,7 +195,7 @@ class RawModel(ModelBase):
 
     @classmethod
     def clone(cls, name, *parents):
-        '''
+        """
         Clone these models (Duplicate all fields)
 
         It can be used from the class
@@ -211,7 +208,7 @@ class RawModel(ModelBase):
 
         :param str name: The new model name
         :param dict parents: The new model extra fields
-        '''
+        """
         fields = cls.wrapper()
         for parent in parents:
             fields.update(copy.deepcopy(parent))
@@ -219,41 +216,41 @@ class RawModel(ModelBase):
 
     def __deepcopy__(self, memo):
         obj = self.__class__(self.name,
-                             [(key, copy.deepcopy(value, memo)) for key, value in iteritems(self)],
+                             [(key, copy.deepcopy(value, memo)) for key, value in self.items()],
                              mask=self.__mask__)
         obj.__parents__ = self.__parents__
         return obj
 
 
 class Model(RawModel, dict, MutableMapping):
-    '''
+    """
     A thin wrapper on fields dict to store API doc metadata.
     Can also be used for response marshalling.
 
     :param str name: The model public name
     :param str mask: an optional default model mask
-    '''
+    """
     pass
 
 
 class OrderedModel(RawModel, OrderedDict, MutableMapping):
-    '''
+    """
     A thin wrapper on ordered fields dict to store API doc metadata.
     Can also be used for response marshalling.
 
     :param str name: The model public name
     :param str mask: an optional default model mask
-    '''
+    """
     wrapper = OrderedDict
 
 
 class SchemaModel(ModelBase):
-    '''
+    """
     Stores API doc metadata based on a json schema.
 
     :param str name: The model public name
     :param dict schema: The json schema we are documenting
-    '''
+    """
 
     def __init__(self, name, schema=None):
         super(SchemaModel, self).__init__(name)

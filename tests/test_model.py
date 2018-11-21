@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import copy
 import pytest
 
 from collections import OrderedDict
 
-from flask_restplus import fields, Model, OrderedModel, SchemaModel
+from quart_restplus import fields, Model, OrderedModel, SchemaModel
 
 
-class ModelTest(object):
+class TestModel(object):
     def test_model_as_flat_dict(self):
         model = Model('Person', {
             'name': fields.String,
@@ -597,7 +595,7 @@ class ModelTest(object):
 
     def test_validate(self):
         from jsonschema import FormatChecker
-        from werkzeug.exceptions import BadRequest
+        from quart.exceptions import BadRequest
 
         class IPAddress(fields.Raw):
             __schema_type__ = 'string'
@@ -616,7 +614,7 @@ class ModelTest(object):
             model.validate(data, format_checker=FormatChecker())
 
 
-class ModelSchemaTestCase(object):
+class TestModelSchema(object):
     def test_model_schema(self):
         address = SchemaModel('Address', {
             'properties': {
@@ -677,7 +675,7 @@ class ModelSchemaTestCase(object):
         }
 
 
-class ModelDeprecattionsTest(object):
+class TestModelDeprecattions(object):
     def test_extend_is_deprecated(self):
         parent = Model('Parent', {
             'name': fields.String,
