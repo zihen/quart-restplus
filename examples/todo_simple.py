@@ -30,15 +30,14 @@ class TodoSimple(Resource):
      {u'todo2': u'Change my breakpads'}
 
     """
+
     def get(self, todo_id):
         return {todo_id: todos[todo_id]}
 
-    def put(self, todo_id):
-        todos[todo_id] = request.form['data']
+    async def put(self, todo_id):
+        todos[todo_id] = (await request.form)['data']
         return {todo_id: todos[todo_id]}
 
 
 if __name__ == '__main__':
     app.run(debug=False)
-
-

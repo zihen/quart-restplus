@@ -4,11 +4,12 @@ from quart import make_response, Quart
 from quart_restplus import Api, Resource, fields
 
 
-def output_xml(data, code, headers=None):
+async def output_xml(data, code, headers=None):
     """Makes a Quart response with a XML encoded body"""
-    resp = make_response(dumps({'response': data}), code)
+    resp = await make_response(dumps({'response': data}), code)
     resp.headers.extend(headers or {})
     return resp
+
 
 app = Quart(__name__)
 api = Api(app, default_mediatype='application/xml')
@@ -29,6 +30,7 @@ class Hello(Resource):
         >>> get('http://localhost:5000/me', headers={"accept":"application/xml"}).content
         '<?xml version="1.0" ?><response><hello>me</hello></response>'
     """
+
     @api.doc(model=hello_fields, params={'entry': 'The entry to wrap'})
     def get(self, entry):
         """Get a wrapped entry"""

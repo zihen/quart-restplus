@@ -28,6 +28,7 @@ tzlocal = "*"
 readme_renderer = "*"
 requests = "*"
 alabaster = "*"
+python-simplexml = "*"
 
 [requires]
 python_version = "3.7"

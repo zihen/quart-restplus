@@ -63,9 +63,9 @@ class TodoList(Resource):
     @ns.doc('create_todo')
     @ns.expect(todo)
     @ns.marshal_with(todo, code=201)
-    def post(self):
+    async def post(self):
         """Create a new task"""
-        return DAO.create(api.payload), 201
+        return DAO.create(await api.payload), 201
 
 
 @ns.route('/<int:id>')
@@ -89,9 +89,9 @@ class Todo(Resource):
 
     @ns.expect(todo)
     @ns.marshal_with(todo)
-    def put(self, id):
+    async def put(self, id):
         """Update a task given its identifier"""
-        return DAO.update(id, api.payload)
+        return DAO.update(id, await api.payload)
 
 
 if __name__ == '__main__':

@@ -1,10 +1,11 @@
 from quart import Quart
 from quart_restplus import Api, Resource, fields
-from werkzeug.contrib.fixers import ProxyFix
 
 app = Quart(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app)
-api = Api(app, version='1.0', title='Todo API',
+api = Api(
+    app,
+    version='1.0',
+    title='Todo API',
     description='A simple TODO API',
 )
 
@@ -30,6 +31,7 @@ def abort_if_todo_doesnt_exist(todo_id):
     if todo_id not in TODOS:
         api.abort(404, "Todo {} doesn't exist".format(todo_id))
 
+
 parser = api.parser()
 parser.add_argument('task', type=str, required=True, help='The task details', location='form')
 
@@ -38,6 +40,7 @@ parser.add_argument('task', type=str, required=True, help='The task details', lo
 @api.doc(responses={404: 'Todo not found'}, params={'todo_id': 'The Todo ID'})
 class Todo(Resource):
     """Show a single todo item and lets you delete them"""
+
     @api.doc(description='todo_id should be in {0}'.format(', '.join(TODOS.keys())))
     @api.marshal_with(todo)
     def get(self, todo_id):
@@ -54,9 +57,9 @@ class Todo(Resource):
 
     @api.doc(parser=parser)
     @api.marshal_with(todo)
-    def put(self, todo_id):
+    async def put(self, todo_id):
         """Update a given resource"""
-        args = parser.parse_args()
+        args = await parser.parse_args()
         task = {'task': args['task']}
         TODOS[todo_id] = task
         return task
@@ -65,6 +68,7 @@ class Todo(Resource):
 @ns.route('/')
 class TodoList(Resource):
     """Shows a list of all todos, and lets you POST to add new tasks"""
+
     @api.marshal_list_with(listed_todo)
     def get(self):
         """List all todos"""
@@ -72,9 +76,9 @@ class TodoList(Resource):
 
     @api.doc(parser=parser)
     @api.marshal_with(todo, code=201)
-    def post(self):
+    async def post(self):
         """Create a todo"""
-        args = parser.parse_args()
+        args = await parser.parse_args()
         todo_id = 'todo%d' % (len(TODOS) + 1)
         TODOS[todo_id] = {'task': args['task']}
         return TODOS[todo_id], 201
