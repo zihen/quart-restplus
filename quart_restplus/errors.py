@@ -9,6 +9,8 @@ __all__ = (
     'RestError',
     'ValidationError',
     'SpecsError',
+    'DuplicateArgumentError',
+    'ArgumentDoesNotExist'
 )
 
 
@@ -36,6 +38,7 @@ def abort(code=HTTPStatus.INTERNAL_SERVER_ERROR, message=None, **kwargs):
 
 class RestError(Exception):
     """Base class for all Quart-Restplus Errors"""
+
     def __init__(self, msg):
         self.msg = msg
 
@@ -50,4 +53,16 @@ class ValidationError(RestError):
 
 class SpecsError(RestError):
     """An helper class for incoherent specifications."""
+    pass
+
+
+class ParserError(Exception):
+    pass
+
+
+class DuplicateArgumentError(ParserError):
+    pass
+
+
+class ArgumentDoesNotExist(ParserError):
     pass

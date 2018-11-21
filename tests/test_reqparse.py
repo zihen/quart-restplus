@@ -557,17 +557,17 @@ class TestRequestParser:
             req = ctx.request
             parser = RequestParser()
             foo_arg = Argument('foo', type=int)
-            parser.args.append(foo_arg)
+            parser.args[foo_arg.name] = foo_arg
             parser_copy = parser.copy()
 
             # Deepcopy should create a clone of the argument object instead of
             # copying a reference to the new args list
-            assert foo_arg not in parser_copy.args
+            assert foo_arg not in parser_copy.args.values()
 
             # Args added to new parser should not be added to the original
             bar_arg = Argument('bar')
-            parser_copy.args.append(bar_arg)
-            assert bar_arg not in parser.args
+            parser_copy.args[bar_arg.name] = bar_arg
+            assert bar_arg not in parser.args.values()
 
             args = await parser_copy.parse_args(req)
             assert args['foo'] == 101
@@ -691,7 +691,7 @@ class TestRequestParser:
         parser = RequestParser(trim=True)
         parser.add_argument('foo', trim=False)
 
-        assert parser.args[0].trim is False
+        assert parser.args['foo'].trim is False
 
     async def test_trim_request_parser_json(self, app):
         parser = RequestParser(trim=True)

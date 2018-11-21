@@ -3,14 +3,14 @@ import asyncio
 import decimal
 
 from http import HTTPStatus
-from collections import Hashable
+from collections import Hashable, OrderedDict
 from copy import deepcopy
 
 from quart import current_app, request, Request
 from quart.datastructures import MultiDict, FileStorage
 from quart import exceptions
 
-from .errors import abort, SpecsError
+from .errors import abort, SpecsError, DuplicateArgumentError, ArgumentDoesNotExist
 from .marshalling import marshal
 from .model import Model
 
@@ -160,14 +160,18 @@ class Argument(object):
             return value
 
         try:
+            # noinspection All
             return self.type(value, self.name, op)
         except TypeError:
             try:
                 if self.type is decimal.Decimal:
+                    # noinspection All
                     return self.type(str(value), self.name)
                 else:
+                    # noinspection All
                     return self.type(value, self.name)
             except TypeError:
+                # noinspection All
                 return self.type(value)
 
     def handle_validation_error(self, error, bundle_errors):
@@ -239,7 +243,9 @@ class Argument(object):
                         msg = 'The value \'{0}\' is not a valid choice for \'{1}\'.'.format(value, name)
                         return self.handle_validation_error(msg, bundle_errors)
 
+                    # noinspection All
                     if name in req.unparsed_arguments:
+                        # noinspection All
                         req.unparsed_arguments.pop(name)
                     results.append(value)
 
@@ -314,7 +320,7 @@ class RequestParser(object):
 
     def __init__(self, argument_class=Argument, result_class=ParseResult,
                  trim=False, bundle_errors=False):
-        self.args = []
+        self.args = OrderedDict()
         self.argument_class = argument_class
         self.result_class = result_class
         self.trim = trim
@@ -331,14 +337,18 @@ class RequestParser(object):
         """
 
         if len(args) == 1 and isinstance(args[0], self.argument_class):
-            self.args.append(args[0])
+            arg = args[0]
         else:
-            self.args.append(self.argument_class(*args, **kwargs))
+            arg = self.argument_class(*args, **kwargs)
 
+        if arg.name in self.args:
+            raise DuplicateArgumentError("Can't add, duplicate name \"{}\" in parser".format(arg.name))
+
+        self.args[arg.name] = arg
         # Do not know what other argument classes are out there
         if self.trim and self.argument_class is Argument:
             # enable trim for appended element
-            self.args[-1].trim = kwargs.get('trim', self.trim)
+            arg.trim = kwargs.get('trim', self.trim)
 
         return self
 
@@ -355,7 +365,7 @@ class RequestParser(object):
         # among self.args, it will be popped out
         req.unparsed_arguments = dict(await self.argument_class('').source(req)) if strict else {}
         errors = {}
-        for arg in self.args:
+        for arg in self.args.values():
             value, found = await arg.parse(req, self.bundle_errors)
             if isinstance(value, ValueError):
                 errors.update(found)
@@ -383,27 +393,23 @@ class RequestParser(object):
 
     def replace_argument(self, name, *args, **kwargs):
         """Replace the argument matching the given name with a new version."""
-        new_arg = self.argument_class(name, *args, **kwargs)
-        for index, arg in enumerate(self.args[:]):
-            if new_arg.name == arg.name:
-                del self.args[index]
-                self.args.append(new_arg)
-                break
+        if name not in self.args:
+            raise ArgumentDoesNotExist("Argument {} doesn't exist".format(name))
+        self.args[name] = self.argument_class(name, *args, **kwargs)
         return self
 
     def remove_argument(self, name):
         """Remove the argument matching the given name."""
-        for index, arg in enumerate(self.args[:]):
-            if name == arg.name:
-                del self.args[index]
-                break
+        if name not in self.args:
+            raise ArgumentDoesNotExist("Argument {} doesn't exist".format(name))
+        del self.args[name]
         return self
 
     @property
     def __schema__(self):
         params = []
         locations = set()
-        for arg in self.args:
+        for arg in self.args.values():
             param = arg.__schema__
             if param:
                 params.append(param)
@@ -417,9 +423,11 @@ def _handle_arg_type(arg, param):
     if isinstance(arg.type, Hashable) and arg.type in PY_TYPES:
         param['type'] = PY_TYPES[arg.type]
     elif hasattr(arg.type, '__apidoc__'):
+        # noinspection All
         param['type'] = arg.type.__apidoc__['name']
         param['in'] = 'body'
     elif hasattr(arg.type, '__schema__'):
+        # noinspection All
         param.update(arg.type.__schema__)
     elif arg.location == 'files':
         param['type'] = 'file'
