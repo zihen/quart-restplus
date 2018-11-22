@@ -15,7 +15,7 @@ from functools import wraps, partial
 from types import MethodType
 from http import HTTPStatus
 
-from quart import Quart, url_for, request, current_app, Response
+from quart import Quart, url_for, request, websocket, current_app, Response
 from quart import make_response as original_quart_make_response
 from quart.helpers import _endpoint_from_view_func
 from quart.signals import got_request_exception
@@ -577,11 +577,15 @@ class Api:
         :param function original_handler: the original Quart error handler for the app
         :param Exception e: the exception raised while handling the request
         """
-        if self._has_qr_route():
-            try:
-                return await self.handle_error(e)
-            except Exception as err:
-                log.exception(err)
+        try:
+            # Ignore websocket request
+            websocket._get_current_object()
+        except:
+            if self._has_qr_route():
+                try:
+                    return await self.handle_error(e)
+                except Exception as err:
+                    log.exception(err)
         return await original_handler(e)
 
     async def handle_error(self, e):
