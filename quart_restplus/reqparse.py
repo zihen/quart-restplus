@@ -92,7 +92,7 @@ class Argument(object):
     :param bool nullable: If enabled, allows null value in argument.
     """
 
-    def __init__(self, name, default=None, dest=None, required=False,
+    def __init__(self, name, *, default=None, dest=None, required=False,
                  ignore=False, type=text_type, location=('json', 'values',),
                  choices=(), action='store', help=None, operators=('=',),
                  case_sensitive=True, store_missing=True, trim=False,
@@ -319,11 +319,12 @@ class RequestParser(object):
     """
 
     def __init__(self, argument_class=Argument, result_class=ParseResult,
-                 trim=False, bundle_errors=False):
+                 trim=False, store_missing=True, bundle_errors=False):
         self.args = OrderedDict()
         self.argument_class = argument_class
         self.result_class = result_class
         self.trim = trim
+        self.store_missing = store_missing
         self.bundle_errors = bundle_errors
 
     def add_argument(self, *args, **kwargs):
@@ -345,11 +346,7 @@ class RequestParser(object):
             raise DuplicateArgumentError("Can't add, duplicate name \"{}\" in parser".format(arg.name))
 
         self.args[arg.name] = arg
-        # Do not know what other argument classes are out there
-        if self.trim and self.argument_class is Argument:
-            # enable trim for appended element
-            arg.trim = kwargs.get('trim', self.trim)
-
+        self._init_argument(arg, kwargs)
         return self
 
     async def parse_args(self, req: Request = None, strict=False):
@@ -388,6 +385,7 @@ class RequestParser(object):
         parser_copy = self.__class__(self.argument_class, self.result_class)
         parser_copy.args = deepcopy(self.args)
         parser_copy.trim = self.trim
+        parser_copy.store_missing = self.store_missing
         parser_copy.bundle_errors = self.bundle_errors
         return parser_copy
 
@@ -396,6 +394,7 @@ class RequestParser(object):
         if name not in self.args:
             raise ArgumentDoesNotExist("Argument {} doesn't exist".format(name))
         self.args[name] = self.argument_class(name, *args, **kwargs)
+        self._init_argument(self.args[name], kwargs)
         return self
 
     def remove_argument(self, name):
@@ -417,6 +416,17 @@ class RequestParser(object):
         if 'body' in locations and 'formData' in locations:
             raise SpecsError("Can't use formData and body at the same time")
         return params
+
+    def _init_argument(self, arg, kwargs):
+        # Do not know what other argument classes are out there
+        if isinstance(arg, Argument):
+            if self.trim:
+                # enable trim for added argument
+                arg.trim = kwargs.get('trim', self.trim)
+
+            if not self.store_missing:
+                # disable store missing for added argument
+                arg.store_missing = kwargs.get('store_missing', self.store_missing)
 
 
 def _handle_arg_type(arg, param):

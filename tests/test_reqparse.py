@@ -365,6 +365,20 @@ class TestRequestParser:
             assert args['foo'] is None
 
     async def test_parse_store_missing(self, app):
+        # test store missing on parser level
+        async with app.test_request_context('/bubble') as ctx:
+            req = ctx.request
+            parser = RequestParser(store_missing=False)
+            parser.add_argument('foo')
+            parser.add_argument('bar', store_missing=True)
+
+            assert parser.args['foo'].store_missing is False
+            assert parser.args['bar'].store_missing is True
+            args = await parser.parse_args(req)
+            assert 'foo' not in args
+            assert 'bar' in args
+
+        # test store missing on argument level
         async with app.test_request_context('/bubble') as ctx:
             req = ctx.request
             parser = RequestParser()
@@ -574,10 +588,11 @@ class TestRequestParser:
             assert args['bar'] == 'baz'
 
     async def test_request_parse_copy_including_settings(self):
-        parser = RequestParser(trim=True, bundle_errors=True)
+        parser = RequestParser(trim=True, store_missing=False, bundle_errors=True)
         parser_copy = parser.copy()
 
         assert parser.trim == parser_copy.trim
+        assert parser.store_missing == parser_copy.store_missing
         assert parser.bundle_errors == parser_copy.bundle_errors
 
     async def test_request_parser_replace_argument(self, app):
