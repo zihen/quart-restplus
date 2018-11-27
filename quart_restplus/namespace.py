@@ -29,8 +29,9 @@ class Namespace(object):
     :param bool ordered: Whether or not to preserve order on models and marshalling
     :param Api api: an optional API to attache to the namespace
     """
+
     def __init__(self, name, description=None, path=None, decorators=None, validate=None,
-            authorizations=None, ordered=False, **kwargs):
+                 authorizations=None, ordered=False, **kwargs):
         self.name = name
         self.description = description
         self._path = path
@@ -84,12 +85,14 @@ class Namespace(object):
         """
         A decorator to route resources.
         """
+
         def wrapper(cls):
             doc = kwargs.pop('doc', None)
             if doc is not None:
                 self._handle_api_doc(cls, doc)
             self.add_resource(cls, *urls, **kwargs)
             return cls
+
         return wrapper
 
     def _handle_api_doc(self, cls, doc):
@@ -117,6 +120,7 @@ class Namespace(object):
         def wrapper(documented):
             self._handle_api_doc(documented, kwargs if show else False)
             return documented
+
         return wrapper
 
     def hide(self, func):
@@ -226,15 +230,18 @@ class Namespace(object):
         :param int code: Optionally give the expected HTTP response code if its different from 200
 
         """
+
         def wrapper(func):
+            code_str = str(getattr(code, 'value', code))
             doc = {
                 'responses': {
-                    code: (description, [fields]) if as_list else (description, fields)
+                    code_str: (description, [fields]) if as_list else (description, fields)
                 },
                 '__mask__': kwargs.get('mask', True),  # Mask values can't be determined outside app context
             }
             func.__apidoc__ = merge(getattr(func, '__apidoc__', {}), doc)
             return marshal_with(fields, ordered=self.ordered, **kwargs)(func)
+
         return wrapper
 
     def marshal_list_with(self, fields, **kwargs):
@@ -252,6 +259,7 @@ class Namespace(object):
             def wrapper(func):
                 self.error_handlers[exception] = func
                 return func
+
             return wrapper
         else:
             # Register the default error handler
