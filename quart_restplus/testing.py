@@ -159,7 +159,7 @@ class TestClient(QuartClient):
 
         request = Request(method, scheme, path, query_string_bytes, headers)  # type: ignore
         request.body.set_result(request_data)
-        response = await asyncio.create_task(self.app.handle_request(request))
+        response = await self.app.handle_request(request)
         if self.cookie_jar is not None and 'Set-Cookie' in response.headers:
             self.cookie_jar.load(";".join(response.headers.getall('Set-Cookie')))
         return response
